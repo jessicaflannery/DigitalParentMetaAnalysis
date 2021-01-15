@@ -1,0 +1,3538 @@
+---
+title: "Digital Parent Training RCT meta-analysis"
+description: null
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document:
+    fig_height: 6
+    fig_width: 8
+  html_document:
+    css: custom.css
+    theme: united
+    toc: yes
+Author: me
+editor_options: 
+  chunk_output_type: console
+---
+
+This is a RMarkdown has been adapted from the template for experimental studies meta-analysis in Psychology, developed by Siu Kit Yeung (MPhil student) and Dr. Gilad Feldman (Assistant Professor) from the University of Hong Kong Department of Psychology. This is integrated and adapted with reference to Yeung, Yay, and Feldman (2020) Omission-commission asymmetries in morality and decisions: 
+Meta-analysis of the Omission-bias, as well as Fillon, Kutscher, and Feldman (2020) Impact of past behavior normality on regret: Meta-analysis of exceptionality effect. The corresponding datafile is "Digital_parent_training_RCT_MetaAnalysis.csv". 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(error = TRUE)
+```
+
+```{r echo=FALSE}
+##This is a setup block for you to provide some basic infomation used in other parts of the document, including author(s) name, year, title, independent variable, dependent variable(s), and datafile name,
+
+# Type the last name of the first author here
+Author<-"Flannery"
+
+Year <- 2020
+
+# Meta-Analysis Title
+Title<-"Digital Parenting Meta Analysis"
+
+# This file conducts a meta-analysis of experimental studies. Define the variable names for the relationship of interest
+X<-"Digital Parenting RCTs"
+Y<-"Parent Training, Parent Well-being, and Child Externalizing Outcomes"
+
+# What is the name of the datafile? IMPORTANT: Please ensure the datafile is in the same folder as the .R file is in, otherwise the datafile cannot be read
+filename<-"Digital_parent_training_RCT_MetaAnalysis.csv"
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# update.packages(ask = FALSE, dependencies = c('Suggests'))
+
+if(!require(knitr)){install.packages('knitr', dependencies = TRUE)}
+library("knitr")
+
+
+# This automatically generates the year from the system date
+Year<-as.numeric(format(Sys.Date(), "%Y"))
+
+
+##This is a setup block to ensure that you have all of the packages needed for the analyses below. You can add additional packages if required. Below are just commonly used and essential packages.
+
+#Set system language to English. Feel free to set the language to other language of your preference. 
+Sys.setenv(LANG = "en")
+
+# Installing all the required packages for this analysis. Add more if needed.
+if(!require(rstudioapi)){install.packages('rstudioapi', dependencies = TRUE)}
+if(!require(readxl)){install.packages('readxl', dependencies = TRUE)}
+if(!require(foreign)){install.packages('foreign', dependencies = TRUE)}
+if(!require(metafor)){install.packages('metafor', dependencies = TRUE)}
+if(!require(Hmisc)){install.packages('Hmisc', dependencies = TRUE)}
+if(!require(pequod)){install.packages('pequod', dependencies = TRUE)}
+if(!require(csv)){install.packages('csv', dependencies = TRUE)}
+if(!require(dplyr)) install.packages("dplyr", dependencies = TRUE)
+if(!require(xlsx)) install.packages("xlsx", dependencies = TRUE)
+if(!require(psych)) install.packages("psych", dependencies = TRUE)
+if(!require(compute.es)) install.packages("compute.es", dependencies = TRUE)
+if(!require(devtools)) install.packages("devtools", dependencies = TRUE)
+if(!require(broom)) install.packages("broom", dependencies = TRUE)
+if(!require(MBESS)) install.packages("MBESS", dependencies = TRUE)
+if(!require(formatR))install.packages("formatR", dependencies = TRUE)
+if(!require(MAd))install.packages("MAd", dependencies = TRUE)
+if(!require(data.table))install.packages("data.table", dependencies = TRUE)
+if(!require(weightr)){install.packages('weightr')}
+if(!require(powerAnalysis)){install.packages('powerAnalysis')}
+if(!require(ggplot2)){install.packages('ggplot2', dependencies = TRUE)}
+if(!require(meta)){install.packages('meta', dependencies = TRUE)}
+if(!require(dmetar)){install.packages('dmetar', dependencies = TRUE)}
+if(!require(metaforest)){install.packages('metaforest', dependencies = TRUE)}
+if(!require(ranger)){install.packages('ranger', dependencies = TRUE)}
+if(!require(forcats)){install.packages('forcats', dependencies = TRUE)}
+if(!require(metaviz)){install.packages('metaviz', dependencies = TRUE)}
+
+library(powerAnalysis)
+library(weightr)
+library(data.table)
+library(MAd)
+library(formatR)
+library(MBESS)
+library(compute.es)
+library(psych)
+library(rstudioapi)
+library(foreign)
+library(metafor)
+library(Hmisc)
+library(pequod)
+library(csv)
+library(dplyr)
+library(xlsx)
+library(devtools)
+library(ggplot2)
+library(esc)
+library(broom)
+library(meta)
+library(dmetar)
+library(metaforest)
+library(ranger)
+library(forcats)
+library(metaviz)
+
+  
+# Setting formatting options (Feel free to change based on your preference)
+options(scipen=999, digits =3)
+
+
+```
+
+# Digital Parent Training main effect analyses #
+
+#import data, rescale, and calculate effect size per individual variable by type of raw data format
+intervention v control pre-post.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Read the datafile. IMPORTANT: i) Please ensure the datafile is in the same folder as the .R file is in, otherwise the datafile cannot be read. ii) Please ensure you "skip" the right number of columns so that the datafile can be read properly. For example, if the headers start at Column 4, type skip = 3.
+
+dat = read.csv("~/Documents/Papers/parenting_metaanalysis/data check/Merged_for_analysis_noNotes_cleanedNA.csv")
+
+#cmake numeric variables numeric
+dat[,c(4:6,8,10:14,17,19:39,41:57,62:67,69:75,77,78,80,82,84,87,89,91,93:98,100:122,124,126,128,130,132,134:174)] <- sapply(dat[,c(4:6,8,10:14,17,19:39,41:57,62:67,69:75,77,78,80,82,84,87,89,91,93:98,100:122,124,126,128,130,132,134:174)], as.numeric)
+
+ # We need to assemble the data from lots of different designs
+# Used this reference: http://www.metafor-project.org/doku.php/tips:assembling_data_smd
+
+dataset_all <- dat[,c("Article_Name",  "Variable_Name", "Measure_name", "Article_number", "Published", "Time_point", "ITT_analysis", "Subsample", "Subcontrol",  "DV_num", "Sample_num",  "Scales", "FU_timeline", "i_mean_post", "i_sd_post", "i_n_post",  "c_mean_post", "c_sd_post", "c_n_post", "i_mean_pre",  "i_sd_pre",  "i_n_pre", "c_mean_pre", "c_sd_pre", "c_n_pre",  "i_SE_post", "c_SE_post", "i_SE_pre", "c_SE_pre", "N_gross",  "N_i_gross", "N_i_post.attrition",  "N_c_gross", "N_c_post.attrition",  "Age_M", "Age_SD", "wi_i_effect_size_paper",  "bw_effect_paper", "Ratio.value..Intervention.versus.control.", "Lower.CI.ratio", "Upper.Ci.ratio", "regression.coefficient..between.groups.", "SE_regression.coeff", "p.value",  "F.ANOVA.F", "t.from.t.test", "chisq", "Z_i", "r_i", "Z_c", "r_c","percent_male_total",  "Percent_male_i",  "Percent_male_c",  "Child_diagnostic_category", "Family_race", "SES_i",  "SES_c",  "SES_total",  "Parent_education_i",  "Parent_education_c",  "Parent_education_total",   "Dosage_time_hours_total_i", "Type_Digital_Media", "setting_i", "Sample_child", "sample_parent", "EvidencedAdapt_i", "Child_medication",   "Parent_mental_health",  "Parent_gender",  "Parent_relationship_status", "Dual_parent_engagement","Clinical_training",  "i_targed_minority", "sync_v_nonsync",  "c_active_v_inactive", "Dosage_number_contacts_i", "Dosage_number_contacts_i_week", "Dosage_minutes_i",  "Dosage_weeks_i", "Dosage_combined_i", "c_group_type",  "Dosage_number_contacts_c", "Dosage_time_hours_total_c","Setting_c", "Random_sequence_generation", "Allocation_concealment", "Blinding_participants_personnel",  "Blinding_outcome_assessment", "Incomplete_outcome_data",  "Selective_outcome_reporting")] 
+
+#reduced to not include follow up analyses for scope of current paper
+dataset <- dataset_all %>%
+  filter(is.na(FU_timeline))
+
+#Article Day 2018 (article #28) uses the same control group for two interventions, so control group sample needs to be split in half to not inflate results.
+    dataset <- dataset %>%
+      mutate(Article_number=28, c_n_post = c_n_post/2)
+
+# set up an empty frame to hold the effect size
+dat2 <- data.frame(matrix(NA, nrow=nrow(dataset), ncol=2)) 
+names(dat2) <- c("yi","vi")
+i <- 1 
+for (i in 1:nrow(dataset)) {
+              # If we have M, SD, N for two conditions
+              if (!is.na(dataset$i_n_post[i]) & 
+                  !is.na(dataset$i_mean_post[i]) & 
+                  !is.na(dataset$i_sd_post[i]) & 
+                  !is.na(dataset$c_n_post[i]) &
+                  !is.na(dataset$c_mean_post[i]) &
+                  !is.na(dataset$c_sd_post[i])) {
+                tmp2 <- NA
+                tmp2 <- esc_mean_sd(grp1m=dataset$i_mean_post[i], 
+                               grp1sd=dataset$i_sd_post[i], 
+                               grp1n=dataset$i_n_post[i],
+                               grp2m=dataset$c_mean_post[i], 
+                               grp2sd=dataset$c_sd_post[i], 
+                               grp2n=dataset$c_n_post[i], es.type = "g")
+                # print(tmp2)
+                if (dataset$Scales[i]== "0") {
+                  tmp2$es <- tmp2$es *(-1)
+                }
+                dat2$yi[i] <- tmp2$es 
+                dat2$vi[i] <- tmp2$var
+              }  else 
+              # If we have M, SE, N for two conditions
+                 if (!is.na(dataset$i_n_post[i]) & 
+                      !is.na(dataset$i_mean_post[i]) & 
+                      !is.na(dataset$i_SE_pre[i]) & 
+                      !is.na(dataset$c_n_post[i]) &
+                      !is.na(dataset$c_mean_post[i]) &
+                      !is.na(dataset$c_SE_pre[i])) {
+                    tmp3 <- NA
+                    tmp3 <- esc_mean_se(grp1m=dataset$i_mean_post[i], 
+                                   grp1se=dataset$i_SE_pre[i], 
+                                   grp1n=dataset$i_n_post[i],
+                                   grp2m=dataset$c_mean_post[i], 
+                                   grp2se=dataset$c_SE_pre[i], 
+                                   grp2n=dataset$c_n_post[i], es.type = "g")
+                    # print(tmp1)
+                    if (dataset$Scales[i]== "0") {
+                      tmp3$es <- tmp3$es *(-1)
+                    }
+                    dat2$yi[i] <- tmp3$es 
+                    dat2$vi[i] <- tmp3$var
+} else 
+              # If we have chisq for two conditions
+              if (!is.na(dataset$chisq[i]) & 
+                  !is.na(dataset$p.value[i]) & 
+                  !is.na(dataset$N_gross[i])) {
+                tmp4 <- NA
+                tmp4 <- esc_chisq(chisq=dataset$chisq[i], 
+                               p=dataset$p.value[i], 
+                               totaln=dataset$N_gross[i],  es.type = "g")
+                # print(tmp1)
+                if (dataset$Scales[i]== "0") {
+                  tmp4$es <- tmp4$es *(-1)
+                }
+                dat2$yi[i] <- tmp4$es 
+                dat2$vi[i] <- tmp4$var
+} else 
+      # If we only have F statistic and DF
+      if (!is.na(dataset$i_n_post[i]) & 
+          !is.na(dataset$c_n_post[i]) &
+          !is.na(dataset$F.ANOVA.F[i]) ) {
+        tmp1 <- NA
+        tmp1 <- esc_f(f = dataset$F.ANOVA.F[i], 
+                      grp1n = dataset$i_n_post[i], 
+                      grp2n = dataset$c_n_post[i], es.type = "g")
+        # print(tmp4)
+        if (dataset$Scales[i]== "0") {
+          tmp1$es <- tmp1$es *(-1)
+        }
+        dat2$yi[i] <- tmp1$es
+        dat2$vi[i] <- tmp1$var
+      } else 
+              # If we have t test for two conditions
+              if (!is.na(dataset$t.from.t.test[i]) & 
+                  !is.na(dataset$p.value[i])&
+                  !is.na(dataset$N_i_post.attrition[i]) &
+                  !is.na(dataset$N_c_post.attrition[i])) {
+                tmp5 <- NA
+                tmp5 <- esc_t(t=dataset$t.from.t.test[i], 
+                               p=dataset$p.value[i], 
+                               grp1n=dataset$N_i_post.attrition[i],
+                               grp2n=dataset$N_c_post.attrition[i],  es.type = "g")
+                # print(tmp1)
+                if (dataset$Scales[i]== "0") {
+                  tmp5$es <- tmp5$es *(-1)
+                }
+                dat2$yi[i] <- tmp5$es 
+                dat2$vi[i] <- tmp5$var
+              } }
+
+combineddataset <- cbind(dataset,dat2)
+combineddataset$g <- combineddataset$yi
+combineddataset$dvar <- combineddataset$vi
+
+write.csv(combineddataset, "combineddataset_post.csv")
+
+```
+
+## Digital Parent Training meta-analysis summary - Random-Effects Two-Level Model ##
+
+Firstly, we start by running Random-Effects Two-Level Model.
+DV1: Parent Training
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##Conducting the meta-analyis, combining and collapsing##
+
+dataset_total <- read.csv("combineddataset_post.csv") %>%
+  filter(vi != Inf | vi != NA & yi >-.3)
+#write.csv(dataset_total, "post_cleaned.csv")
+#this only got rid of expected values: 2 outcomes of Inf and 2 outcomes that we didn't receive info to calculate effect size. Did not remove any studies; total of 24 studies included.
+
+#moderators that need to be made factors
+#family and environmental factors
+dataset_total$SES_i <- as.factor(dataset_total$SES_i)
+dataset_total$SES_total <- as.factor(dataset_total$SES_total)
+dataset_total$Parent_education_total <- as.factor(dataset_total$Parent_education_total)
+dataset_total$Parent_education_i <- as.factor(dataset_total$Parent_education_i)
+
+#child factors
+dataset_total$Child_diagnostic_category <- as.factor(dataset_total$Child_diagnostic_category)
+dataset_total$Child_medication <- as.factor(dataset_total$Child_medication)
+
+#intervention factors
+dataset_total$Type_Digital_Media <- as.factor(dataset_total$Type_Digital_Media)
+dataset_total$setting_i <- as.factor(dataset_total$setting_i)
+dataset_total$sync_v_nonsync <- as.factor(dataset_total$sync_v_nonsync)
+dataset_total$EvidencedAdapt_i <- as.factor(dataset_total$EvidencedAdapt_i)
+dataset_total$Clinical_training <- as.factor(dataset_total$Clinical_training)
+dataset_total$c_group_type <- as.factor(dataset_total$c_group_type)
+dataset_total$c_active_v_inactive <- as.factor(dataset_total$c_active_v_inactive)
+
+#risk of bias
+dataset_total$Allocation_concealment<- as.factor(dataset_total$Allocation_concealment)
+dataset_total$Blinding_outcome_assessment <- as.factor(dataset_total$Blinding_outcome_assessment)
+dataset_total$Incomplete_outcome_data <- as.factor(dataset_total$Incomplete_outcome_data)
+dataset_total$Selective_outcome_reporting <- as.factor(dataset_total$Selective_outcome_reporting)
+# additional variables for table, but not enough to look at statistically:
+#parent mental health, relationship status, parent gender, dual engagement, targeting minority groups, dosage breakdown, clinical training)
+
+#split up dataset for each DV
+dataset1 <- dataset_total %>%
+  filter(DV_num=="1")
+dataset2 <- dataset_total %>%
+  filter(DV_num=="2")
+dataset3 <- dataset_total %>%
+  filter(DV_num=="3")
+
+dataset1$articlestudy <- paste(dataset1$Article_Name, "/", dataset1$Sample_num)
+dataset1$articlestudy <- factor(dataset1$articlestudy)
+
+
+collapsed_study <- agg(id=articlestudy, es=yi, var=vi, cor=.5,
+                 method="BHHR", mod=NULL, data=dataset1)
+
+###
+# If we collapse the effects within each study
+byarticlestudy <- 
+  cbind(
+    aggregate(
+      yi ~ articlestudy, 
+      data=dataset1, 
+      FUN=function(x) c(mean=mean(x), sd=sd(x), min=min(x), max=max(x), count=length(x))),
+    aggregate(
+      c_n_post ~ articlestudy, 
+      data=dataset1, FUN = max)[2],
+    aggregate(
+      i_n_post ~ articlestudy, 
+      data=dataset1, FUN = max)[2],
+    aggregate(
+      N_gross ~ articlestudy, 
+      data=dataset1, FUN = max)[2]
+  
+  )
+names(collapsed_study)[names(collapsed_study) == 'id'] <- 'articlestudy'
+totalexp_study <- merge(byarticlestudy, collapsed_study,by="articlestudy")
+
+
+# allexpcollapsed refers to results with effect size and variance, for two-level model
+allexpcollapsed <- rma(es, var, method = "REML", data = totalexp_study, slab = articlestudy)
+allexpcollapsed
+#DV1
+# Random-Effects Model (k = 21; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0117 (SE = 0.0138)
+# tau (square root of estimated tau^2 value):      0.1082
+# I^2 (total heterogeneity / total variability):   26.21%
+# H^2 (total variability / sampling variability):  1.36
+# 
+# Test for Heterogeneity:
+# Q(df = 20) = 29.7250, p-val = 0.0744
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2466  0.0479  5.1521  <.0001  0.1528  0.3404  *** 
+
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+
+
+
+```
+DV2: Parent Wellbeing/Mental Health
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##Conducting the meta-analyis, combining and collapsing##
+
+dataset2 <- dataset_total %>%
+  filter(DV_num=="2")
+
+
+
+dataset2$articlestudy <- paste(dataset2$Article_Name, "/", dataset2$Sample_num)
+dataset2$articlestudy <- factor(dataset2$articlestudy)
+
+
+collapsed_study2 <- agg(id=articlestudy, es=yi, var=vi, cor=.5,
+                 method="BHHR", mod=NULL, data=dataset2)
+
+###
+# If we collapse the effects within each study
+byarticlestudy2 <- 
+  cbind(
+    aggregate(
+      yi ~ articlestudy, 
+      data=dataset2, 
+      FUN=function(x) c(mean=mean(x), sd=sd(x), min=min(x), max=max(x), count=length(x))),
+    aggregate(
+      i_n_post ~ articlestudy, 
+      data=dataset2, FUN = max)[2],
+    aggregate(
+      c_n_post ~ articlestudy, 
+      data=dataset2, FUN = max)[2],
+    aggregate(
+      N_gross ~ articlestudy, 
+      data=dataset2, FUN = max)[2]
+  
+  )
+names(collapsed_study2)[names(collapsed_study2) == 'id'] <- 'articlestudy'
+totalexp_study2 <- merge(byarticlestudy2, collapsed_study2,by="articlestudy")
+
+
+# allexpcollapsed refers to results with effect size and variance, for two-level model
+allexpcollapsed2 <- rma(es, var, method = "REML", data = totalexp_study2, slab = articlestudy)
+allexpcollapsed2
+#DV2
+# Random-Effects Model (k = 16; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0085 (SE = 0.0156)
+# tau (square root of estimated tau^2 value):      0.0923
+# I^2 (total heterogeneity / total variability):   18.63%
+# H^2 (total variability / sampling variability):  1.23
+# 
+# Test for Heterogeneity:
+# Q(df = 15) = 23.2162, p-val = 0.0797
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2210  0.0551  4.0096  <.0001  0.1130  0.3290  *** 
+
+```
+DV3: Child Externalizing Outcomes
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##Conducting the meta-analyis, combining and collapsing##
+
+dataset3 <- dataset_total %>%
+  filter(DV_num=="3")
+
+
+
+dataset3$articlestudy <- paste(dataset3$Article_Name, "/", dataset3$Sample_num)
+dataset3$articlestudy <- factor(dataset3$articlestudy)
+
+
+collapsed_study3 <- agg(id=articlestudy, es=yi, var=vi, cor=.5,
+                 method="BHHR", mod=NULL, data=dataset3)
+
+
+# If we collapse the effects within each study
+byarticlestudy3 <- 
+  cbind(
+    aggregate(
+      yi ~ articlestudy, 
+      data=dataset3, 
+      FUN=function(x) c(mean=mean(x), sd=sd(x), min=min(x), max=max(x), count=length(x))),
+    aggregate(
+      N_c_gross ~ articlestudy, 
+      data=dataset3, FUN = max)[2],
+    aggregate(
+      N_i_gross ~ articlestudy, 
+      data=dataset3, FUN = max)[2],
+    aggregate(
+      N_gross ~ articlestudy, 
+      data=dataset3, FUN = max)[2]
+  
+  )
+names(collapsed_study3)[names(collapsed_study3) == 'id'] <- 'articlestudy'
+totalexp_study3 <- merge(byarticlestudy3, collapsed_study3,by="articlestudy")
+
+
+# allexpcollapsed refers to results with effect size and variance, for two-level model
+allexpcollapsed3 <- rma(es, var, method = "REML", data = totalexp_study3, slab = articlestudy)
+allexpcollapsed3
+#DV3
+# Random-Effects Model (k = 22; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0661 (SE = 0.0330)
+# tau (square root of estimated tau^2 value):      0.2570
+# I^2 (total heterogeneity / total variability):   66.32%
+# H^2 (total variability / sampling variability):  2.97
+# 
+# Test for Heterogeneity:
+# Q(df = 21) = 57.9427, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2751  0.0704  3.9064  <.0001  0.1371  0.4132  *** 
+
+```
+#Overall effect across all three DVs (supplemental)
+```{r}
+
+dataset_total$articlestudy <- paste(dataset_total$Article_Name, "/", dataset_total$Sample_num)
+dataset_total$articlestudy <- factor(dataset_total$articlestudy)
+
+
+collapsed_studytotal <- agg(id=articlestudy, es=yi, var=vi, cor=.5,
+                 method="BHHR", mod=NULL, data=dataset_total)
+
+###
+# If we collapse the effects within each study
+byarticlestudyall <- 
+  cbind(
+    aggregate(
+      yi ~ articlestudy, 
+      data=dataset_total, 
+      FUN=function(x) c(mean=mean(x), sd=sd(x), min=min(x), max=max(x), count=length(x))),
+    aggregate(
+      i_n_post ~ articlestudy, 
+      data=dataset_total, FUN = max)[2],
+    aggregate(
+      c_n_post ~ articlestudy, 
+      data=dataset_total, FUN = max)[2],
+    aggregate(
+      N_gross ~ articlestudy, 
+      data=dataset_total, FUN = max)[2]
+  
+  )
+names(collapsed_studytotal)[names(collapsed_studytotal) == 'id'] <- 'articlestudy'
+totalexp_studyall <- merge(byarticlestudyall, collapsed_studytotal,by="articlestudy")
+
+
+# allexpcollapsed refers to results with effect size and variance, for two-level model
+allexpcollapsedall <- rma(es, var, method = "REML", data = totalexp_studyall, slab = articlestudy)
+allexpcollapsedall
+# Random-Effects Model (k = 25; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0214 (SE = 0.0158)
+# tau (square root of estimated tau^2 value):      0.1462
+# I^2 (total heterogeneity / total variability):   40.63%
+# H^2 (total variability / sampling variability):  1.68
+# 
+# Test for Heterogeneity:
+# Q(df = 24) = 41.0427, p-val = 0.0165
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2182  0.0484  4.5132  <.0001  0.1235  0.3130  *** 
+allexpcollapsedallml <- rma.mv(yi, vi, method = "REML", random = ~ 1 | articlestudy, data = dataset_total, slab = articlestudy)
+allexpcollapsedallml
+# Multivariate Meta-Analysis Model (k = 283; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0643  0.2536     25     no  articlestudy 
+# 
+# Test for Heterogeneity:
+# Q(df = 282) = 465.3426, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2394  0.0546  4.3866  <.0001  0.1324  0.3464  *** 
+allexpcollapsedallml3 <- rma.mv(yi, vi, method = "REML", random = ~ 1 | articlestudy/DV_num, data = dataset_total, slab = articlestudy)
+allexpcollapsedallml3
+# Multivariate Meta-Analysis Model (k = 283; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed               factor 
+# sigma^2.1  0.0621  0.2492     25     no         articlestudy 
+# sigma^2.2  0.0068  0.0823     59     no  articlestudy/DV_num 
+# 
+# Test for Heterogeneity:
+# Q(df = 282) = 465.3426, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2438  0.0550  4.4347  <.0001  0.1361  0.3516  *** 
+```
+
+## Digital Parent Training meta-analysis summary - Multivariate Two-Level Model ##
+
+Secondly, we run a multivariate two-level model. Multi-variate random-effects model takes account into two or more effect sizes within some of the studies. Check Cheung (2013) - https://www.tandfonline.com/doi/abs/10.1080/10705511.2013.797827 for further information.
+DV1: Parent Training
+```{r}
+allexpcollapsedml2 <- rma.mv(yi, vi, random = ~ 1 | articlestudy, data=dataset1)
+allexpcollapsedml2
+print(allexpcollapsedml2, digits=3)
+
+#DV1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#            estim   sqrt  nlvls  fixed        factor 
+# sigma^2    0.055  0.234     21     no  articlestudy 
+# 
+# Test for Heterogeneity:
+# Q(df = 119) = 192.311, p-val < .001
+# 
+# Model Results:
+# 
+# estimate     se   zval   pval  ci.lb  ci.ub 
+#    0.283  0.058  4.842  <.001  0.169  0.398  *** 
+
+
+#Power Analysis for Random effects Model 
+
+totalexp_study %>%
+  dplyr::summarize(sum(i_n_post), sum(c_n_post))
+#  sum(i_n_post) sum(c_n_post)
+# 1          1314           670
+es <- 0.25 # Overall Effect Size
+nt <- 1314 # Number of participants in treatment group
+nc <- 670 # Number of participants in control group
+k <- 21 # Number of included studies
+hg <- c(0, .33, 1, 3) # Heterogeneity (0 no, .33 small, 1 moderate, 3 high)
+
+eq1 <- ((nt+nc)/((nt)*(nc))) + ((es^2)/(2*(nt+nc)))
+eq2 <- hg*(eq1)
+eq3 <- eq2+eq1
+eq4 <- eq3/k
+eq5 <- (es/sqrt(eq4))
+power <- (1-pnorm(1.96-eq5)) # when alpha .05 -> 1.64 for one-tailed and 1.96 for two tailed
+power
+
+
+#Power Analysis for Random effects Model computed by I-Square
+es <- 0.25 # Overall Effect Size
+nt <- 1314 # Number of participants in treatment group
+nc <- 670 # Number of participants in control group
+k <- 21 # Number of included studies
+hg <- c(0, .33, 1, 3)# Heterogeneity
+
+eq1 <- ((nt+nc)/(nt*nc)+.5*es^2/(nt+nc))*hg
+eq2 <- sqrt(k)*es/sqrt(eq1)
+power <- (pnorm(eq2-qnorm(1-.05/2)))+pnorm(qnorm(.05/2)-eq2)
+power
+
+```
+DV2: Parent Wellbeing/Mental Health
+```{r}
+allexpcollapsedmldv2 <- rma.mv(yi, vi, random = ~ 1 | articlestudy, data=dataset2)
+allexpcollapsedmldv2
+print(allexpcollapsedmldv2, digits=3)
+
+# Multivariate Meta-Analysis Model (k = 62; method: REML)
+# 
+# Variance Components:
+# 
+#            estim   sqrt  nlvls  fixed        factor 
+# sigma^2    0.049  0.222     16     no  articlestudy 
+# 
+# Test for Heterogeneity:
+# Q(df = 61) = 71.124, p-val = 0.176
+# 
+# Model Results:
+# 
+# estimate     se   zval   pval  ci.lb  ci.ub 
+#    0.244  0.068  3.589  <.001  0.111  0.378  *** 
+
+#Power Analysis for Random effects Model 
+totalexp_study2 %>%
+  dplyr::summarize(sum(i_n_post), sum(c_n_post))
+#  sum(i_n_post) sum(c_n_post)
+# 1           934           476
+es <- 0.24 # Overall Effect Size
+nt <- 934 # Number of participants in treatment group
+nc <- 476 # Number of participants in control group
+k <- 16 # Number of included studies
+hg <- c(0, .33, 1, 3) # Heterogeneity (0 no, .33 small, 1 moderate, 3 high)
+
+eq1 <- ((nt+nc)/((nt)*(nc))) + ((es^2)/(2*(nt+nc)))
+eq2 <- hg*(eq1)
+eq3 <- eq2+eq1
+eq4 <- eq3/k
+eq5 <- (es/sqrt(eq4))
+power <- (1-pnorm(1.96-eq5)) # when alpha .05 -> 1.64 for one-tailed and 1.96 for two tailed
+power
+
+
+#Power Analysis for Random effects Model computed by I-Square
+es <- 0.24 # Overall Effect Size
+nt <- 934 # Number of participants in treatment group
+nc <- 476 # Number of participants in control group
+k <- 16 # Number of included studies
+hg <- c(0, .33, 1, 3)# Heterogeneity
+
+eq1 <- ((nt+nc)/(nt*nc)+.5*es^2/(nt+nc))*hg
+eq2 <- sqrt(k)*es/sqrt(eq1)
+power <- (pnorm(eq2-qnorm(1-.05/2)))+pnorm(qnorm(.05/2)-eq2)
+power
+
+```
+DV3: Child Externalizing Outcomes
+```{r}
+allexpcollapsedmldv3 <- rma.mv(yi, vi, random = ~ 1 | articlestudy, data=dataset3)
+allexpcollapsedmldv3
+print(allexpcollapsedmldv3, digits=3)
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#            estim   sqrt  nlvls  fixed        factor 
+# sigma^2    0.099  0.314     22     no  articlestudy 
+# 
+# Test for Heterogeneity:
+# Q(df = 100) = 200.173, p-val < .001
+# 
+# Model Results:
+# 
+# estimate     se   zval   pval  ci.lb  ci.ub 
+#    0.288  0.073  3.934  <.001  0.144  0.431  *** 
+
+
+#Power Analysis for Random effects Model 
+totalexp_study3 %>%
+  dplyr::summarize(sum(N_i_gross), sum(N_c_gross))
+# sum(N_i_gross) sum(N_c_gross)
+# 1           1487           1404
+#  sum(i_n_post) sum(c_n_post)
+# 1           934           476
+es <- 0.29 # Overall Effect Size
+nt <- 1487 # Number of participants in treatment group
+nc <- 1404 # Number of participants in control group
+k <- 22 # Number of included studies
+hg <- c(0, .33, 1, 3) # Heterogeneity (0 no, .33 small, 1 moderate, 3 high)
+
+eq1 <- ((nt+nc)/((nt)*(nc))) + ((es^2)/(2*(nt+nc)))
+eq2 <- hg*(eq1)
+eq3 <- eq2+eq1
+eq4 <- eq3/k
+eq5 <- (es/sqrt(eq4))
+power <- (1-pnorm(1.96-eq5)) # when alpha .05 -> 1.64 for one-tailed and 1.96 for two tailed
+power
+
+
+#Power Analysis for Random effects Model computed by I-Square
+es <- 0.29 # Overall Effect Size
+nt <- 1487 # Number of participants in treatment group
+nc <- 1404 # Number of participants in control group
+k <- 101 # Number of included studies
+hg <- c(0, .33, 1, 3)# Heterogeneity
+
+eq1 <- ((nt+nc)/(nt*nc)+.5*es^2/(nt+nc))*hg
+eq2 <- sqrt(k)*es/sqrt(eq1)
+power <- (pnorm(eq2-qnorm(1-.05/2)))+pnorm(qnorm(.05/2)-eq2)
+power
+
+totalexp_studyall %>%
+  dplyr::summarize(sum(i_n_post), sum(c_n_post))
+
+```
+
+
+
+## Digital Parent Training meta-analysis summary - Multivariate Three-Level Model ##
+
+Afterwards, we run a Multivariate Three-Level Model, with the third level being Article Name. This takes account into the possible dependence between effect sizes of the same articles. We believe that this is a better approach for estimating effect size than two-level model. For details, see Cheung (2014) - https://pdfs.semanticscholar.org/8038/1b0d516d07e42e308f983624bffd497b1d9b.pdf .
+
+Since we divided by DV, there is no need for a multivariate 3 level model; results indicate the extra nesting does not change the results.
+DV1: Parent Training
+```{r}
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# three level, taking into account same article/authors
+allexpcollapsedml3 <- rma.mv(yi, vi, random = ~ 1 | Article_Name/Sample_num, data=dataset1)
+allexpcollapsedml3
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed                   factor 
+# sigma^2.1  0.0275  0.1657     21     no             Article_Name 
+# sigma^2.2  0.0275  0.1657     21     no  Article_Name/Sample_num 
+# 
+# Test for Heterogeneity:
+# Q(df = 119) = 192.3108, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2831  0.0585  4.8424  <.0001  0.1685  0.3977  *** 
+
+
+#SD nested model
+par(mfrow=c(2,1))
+profile(allexpcollapsedml3, sigma2=1)
+profile(allexpcollapsedml3, sigma2=2)
+
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# Estimated ICC Intraclass Correlation of the True Effects
+# The three-level model used in the meta-analysis above allows for the underlying true effects within articles to be correlated.
+ICC = round(allexpcollapsedml3$sigma2[1] / sum(allexpcollapsedml3$sigma2), 3)
+ICC
+#.5-.75=moderate reliability, .75-.9= good reliability
+# [1] 0.5
+
+# To calculate I square of multivariate three-level model, code from http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate#multilevel_models
+
+W <- diag(1/dataset1$vi)
+M <- model.matrix(allexpcollapsedml3)
+P <- W - W %*% M %*% solve(t(M) %*% W %*% M) %*% t(M) %*% W
+I2ML <- 100 * sum(allexpcollapsedml3$sigma2) / (sum(allexpcollapsedml3$sigma2) + (allexpcollapsedml3$k-allexpcollapsedml3$p)/sum(diag(P)))
+#30-60moderate, 50-90 substantial
+# [1] 50.5
+
+
+```
+
+DV2: Parent Wellbeing/Mental Health
+```{r}
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# three level, taking into account same article/authors
+allexpcollapsedml3dv2 <- rma.mv(yi, vi, random = ~ 1 | Article_Name/Sample_num, data=dataset2)
+allexpcollapsedml3dv2
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed                   factor 
+# sigma^2.1  0.0246  0.1569     16     no             Article_Name 
+# sigma^2.2  0.0246  0.1569     16     no  Article_Name/Sample_num 
+# 
+# Test for Heterogeneity:
+# Q(df = 61) = 71.1240, p-val = 0.1762
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2442  0.0680  3.5893  0.0003  0.1109  0.3776  *** 
+
+#SD nested model
+par(mfrow=c(2,1))
+profile(allexpcollapsedml3dv2, sigma2=1)
+profile(allexpcollapsedml3dv2, sigma2=2)
+
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# Estimated ICC Intraclass Correlation of the True Effects
+# The three-level model used in the meta-analysis above allows for the underlying true effects within articles to be correlated.
+ICC = round(allexpcollapsedml3dv2$sigma2[1] / sum(allexpcollapsedml3dv2$sigma2), 3)
+ICC
+#.5-.75=moderate reliability, .75-.9= good reliability
+# [1] 0.5
+
+100 * allexpcollapsedml3dv2$sigma2 / (sum(allexpcollapsedml3dv2$sigma2) + (allexpcollapsedml3dv2$k-allexpcollapsedml3dv2$p)/sum(diag(P)))
+
+# To calculate I square of multivariate three-level model, code from http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate#multilevel_models
+
+W <- diag(1/dataset2$vi)
+M <- model.matrix(allexpcollapsedml3dv2)
+P <- W - W %*% M %*% solve(t(M) %*% W %*% M) %*% t(M) %*% W
+I2ML <- 100 * sum(allexpcollapsedml3dv2$sigma2) / (sum(allexpcollapsedml3dv2$sigma2) + (allexpcollapsedml3dv2$k-allexpcollapsedml3dv2$p)/sum(diag(P)))
+#30-60moderate, 50-90 substantial
+# [1] 49.6
+
+
+
+
+```
+
+DV3: Child Externalizing Outcomes
+```{r}
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# three level, taking into account same article/authors
+allexpcollapsedml3dv3 <- rma.mv(yi, vi, random = ~ 1 | Article_Name/Sample_num, data=dataset3)
+allexpcollapsedml3dv3
+#             estim    sqrt  nlvls  fixed                   factor 
+# sigma^2.1  0.0493  0.2220     22     no             Article_Name 
+# sigma^2.2  0.0493  0.2220     22     no  Article_Name/Sample_num 
+# 
+# Test for Heterogeneity:
+# Q(df = 100) = 200.1730, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+  # 0.2877  0.0731  3.9345  <.0001  0.1444  0.4311  *** 
+
+
+
+#SD nested model
+par(mfrow=c(2,1))
+profile(allexpcollapsedml3dv3, sigma2=1)
+profile(allexpcollapsedml3dv3, sigma2=2)
+
+# code from http://www.metafor-project.org/doku.php/analyses:konstantopoulos2011
+# Estimated ICC Intraclass Correlation of the True Effects
+# The three-level model used in the meta-analysis above allows for the underlying true effects within articles to be correlated.
+ICC = round(allexpcollapsedml3dv3$sigma2[1] / sum(allexpcollapsedml3dv3$sigma2), 3)
+ICC
+
+#.5-.75=moderate reliability, .75-.9= good reliability
+# [1] 0.5
+
+100 * allexpcollapsedml3dv3$sigma2 / (sum(allexpcollapsedml3dv3$sigma2) + (allexpcollapsedml3dv3$k-allexpcollapsedml3dv3$p)/sum(diag(P)))
+
+# To calculate I square of multivariate three-level model, code from http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate#multilevel_models
+
+W <- diag(1/dataset3$vi)
+M <- model.matrix(allexpcollapsedml3dv3)
+P <- W - W %*% M %*% solve(t(M) %*% W %*% M) %*% t(M) %*% W
+I2ML <- 100 * sum(allexpcollapsedml3dv3$sigma2) / (sum(allexpcollapsedml3dv3$sigma2) + (allexpcollapsedml3dv3$k-allexpcollapsedml3dv3$p)/sum(diag(P)))
+#30-60moderate, 50-90 substantial
+# [1] 67.4
+round(I2ML,2)
+```
+
+
+### Summary ###
+
+This analysis is based on `r allexpcollapsed$k` studies that evaluated the impact of `r X` over `r Y`. 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#parent training
+allexpcollapsed.restable<-cbind.data.frame(allexpcollapsed$b, allexpcollapsed$se, 
+                            ifelse(allexpcollapsed$pval < 0.001, "< .001", round(allexpcollapsed$pval,3)), allexpcollapsed$ci.lb, allexpcollapsed$ci.ub,  allexpcollapsed$k)
+colnames(allexpcollapsed.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsed.restable)<-paste(X,"-",Y)
+#                                                                                             Hedge's g     SE      p CI Lower CI Upper  k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.247 0.0479 < .001    0.153     0.34 21
+
+#multivariate
+allexpcollapsedml2.restable<-cbind.data.frame(allexpcollapsedml2$b, allexpcollapsedml2$se, 
+                            ifelse(allexpcollapsedml2$pval < 0.001, "< .001", round(allexpcollapsedml2$pval,3)), allexpcollapsedml2$ci.lb, allexpcollapsedml2$ci.ub,  allexpcollapsedml2$k)
+colnames(allexpcollapsedml2.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsedml2.restable)<-paste(X,"-",Y)
+#                                                                                              Hedge's g     SE      p CI Lower CI Upper   k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.283 0.0585 < .001    0.169    0.398 120
+
+#parent mental health
+allexpcollapsed2.restable<-cbind.data.frame(allexpcollapsed2$b, allexpcollapsed2$se, 
+                            ifelse(allexpcollapsed2$pval < 0.001, "< .001", round(allexpcollapsed2$pval,3)), allexpcollapsed2$ci.lb, allexpcollapsed2$ci.ub,  allexpcollapsed2$k)
+colnames(allexpcollapsed2.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsed2.restable)<-paste(X,"-",Y)
+#                                                                                              Hedge's g     SE      p CI Lower CI Upper  k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.221 0.0551 < .001    0.113    0.329 16
+
+allexpcollapsedml2dv2.restable<-cbind.data.frame(allexpcollapsedmldv2$b, allexpcollapsedmldv2$se, 
+                            ifelse(allexpcollapsedmldv2$pval < 0.001, "< .001", round(allexpcollapsedmldv2$pval,3)), allexpcollapsedmldv2$ci.lb, allexpcollapsedmldv2$ci.ub,  allexpcollapsedmldv2$k)
+colnames(allexpcollapsedml2dv2.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsedml2dv2.restable)<-paste(X,"-",Y)
+#                                                                                               Hedge's g    SE      p CI Lower CI Upper  k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.244 0.068 < .001    0.111    0.378 62
+
+#child outcomes
+allexpcollapsed3.restable<-cbind.data.frame(allexpcollapsed3$b, allexpcollapsed3$se, 
+                            ifelse(allexpcollapsed3$pval < 0.001, "< .001", round(allexpcollapsed3$pval,3)), allexpcollapsed3$ci.lb, allexpcollapsed3$ci.ub,  allexpcollapsed3$k)
+colnames(allexpcollapsed3.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsed3.restable)<-paste(X,"-",Y)
+#                                                                                          Hedge's g     SE      p CI Lower CI Upper  k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.275 0.0704 < .001    0.137    0.413 22
+
+allexpcollapsedml2dv3.restable<-cbind.data.frame(allexpcollapsedmldv3$b, allexpcollapsedmldv3$se, 
+                            ifelse(allexpcollapsedmldv3$pval < 0.001, "< .001", round(allexpcollapsedmldv3$pval,3)), allexpcollapsedmldv3$ci.lb, allexpcollapsedmldv3$ci.ub,  allexpcollapsedmldv3$k)
+colnames(allexpcollapsedml2dv3.restable)<-c("Hedge's g","SE", "p", "CI Lower", "CI Upper", "k")
+row.names(allexpcollapsedml2dv3.restable)<-paste(X,"-",Y)
+#                                                                                            Hedge's g     SE      p CI Lower CI Upper   k
+# Digital Parenting RCTs - Parent Training, Parent Well-being, and Child Externalizing Outcomes     0.288 0.0731 < .001    0.144    0.431 101
+
+
+# Create a table of heterogeneity information - for two-level model
+allexpcollapsed.hettable<-cbind.data.frame(allexpcollapsed$QE, 
+                            ifelse(allexpcollapsed$QEp < 0.001, "< .001", round(allexpcollapsed$QEp,5)), allexpcollapsed$I2)
+colnames(allexpcollapsed.hettable)<-c("Q", "p", "I2")
+#      Q      p   I2
+# 1 29.7 0.0744 26.2
+
+
+allexpcollapsed.hettable<-cbind.data.frame(allexpcollapsed2$QE, 
+                            ifelse(allexpcollapsed2$QEp < 0.001, "< .001", round(allexpcollapsed2$QEp,5)), allexpcollapsed2$I2)
+colnames(allexpcollapsed.hettable)<-c("Q", "p", "I2")
+#     Q      p   I2
+# 1 23.2 0.0797 18.6
+
+allexpcollapsed.hettable<-cbind.data.frame(allexpcollapsed3$QE, 
+                            ifelse(allexpcollapsed3$QEp < 0.001, "< .001", round(allexpcollapsed3$QEp,5)), allexpcollapsed3$I2)
+colnames(allexpcollapsed.hettable)<-c("Q", "p", "I2")
+#      Q      p   I2
+# 1 57.9 < .001 66.3
+```
+
+
+### What is the effect size for `r X` over `r Y`? ###
+
+A random effects two-level meta-analysis was conducted (k=`r allexpcollapsed$k`) to explore the effect of `r X` on `r Y`. The average effect-size was Hedge's g = `r round(allexpcollapsed$b,3)`, (*p* `r ifelse(allexpcollapsed$pval < 0.001, "< .001", round(allexpcollapsed$pval,3))`, 95% CI [`r round(allexpcollapsed$ci.lb, 2)`, `r round(allexpcollapsed$ci.ub, 2)`]). See table below.
+
+`r kable(allexpcollapsed.restable, digits=3, row.names=NA, col.names=c("Hedge's g","*SE*", "*p*", "CI Lower", "CI Upper", "*k*"), caption="Two-Level Meta-Analysis Summary Table")`
+
+Furthermore, A multivariate three-level meta-analysis was conducted (k=`r allexpcollapsed2$k`) to explore the effect of `r X` on `r Y`. The average effect-size was Hedge's g = `r round(allexpcollapsed2$b,3)` (*p* `r ifelse(allexpcollapsed2$pval < 0.001, "< .001", round(allexpcollapsed2$pval,3))`, 95% CI [`r round(allexpcollapsed2$ci.lb, 2)`, `r round(allexpcollapsed2$ci.ub, 2)`]). See table below.
+
+`r kable(allexpcollapsed2.restable, digits=3, row.names=NA, col.names=c("Hedge's g","*SE*", "*p*", "CI Lower", "CI Upper", "*k*"), caption="Multivariate Three-Level Meta-Analysis Summary Table")`
+
+### Does the effect-size vary across studies? ###
+
+A Cochran's Q test was conducted to examine whether variations in the observed effect-size are likely to be attributable solely to sampling error (*Q* (`r allexpcollapsed$k`)=`r round(allexpcollapsed$QE,2)`, *p*=`r ifelse(allexpcollapsed$QEp < 0.001, "< .001", round(allexpcollapsed$QEp,3))`). `r ifelse(allexpcollapsed$QEp < 0.05, "The variation in effect-size is greater than would be expected from sampling error alone. It appears that the true effect varies betweeen studies.", "There is no evidence that the true effect size varies between studies.")`
+
+The *I^2^* statistics indicates the *proportion* of variance in the observed effect attributable to sampling error. In this instance, the *I^2^* = `r round(allexpcollapsed$I2,2)`%. 
+
+Heterogeneity statistics are summarised below
+`r kable(allexpcollapsed.hettable, digits=5, row.names=NA, col.names=c("*Q*", "*p*", "*I^2^*"),caption="Heterogeneity Summary Table for Two-Level Model")`
+
+For multivariate three-level model, similarly, a Cochran's Q test was conducted to examine whether variations in the observed effect-size are likely to be attributable solely to sampling error (*Q* (`r allexpcollapsedml2$k`)=`r round(allexpcollapsedml2$QE,2)`, *p*=`r ifelse(allexpcollapsedml2$QEp < 0.001, "< .001", round(allexpcollapsedml2$QEp,3))`). `r ifelse(allexpcollapsedml2$QEp < 0.05, "The variation in effect-size is greater than would be expected from sampling error alone. It appears that the true effect varies betweeen studies.", "There is no evidence that the true effect size varies between studies.")`
+
+The *I^2^* statistics indicates the *proportion* of variance in the observed effect attributable to sampling error. In this instance, the *I^2^* = `r round(I2ML,2)`%.  
+
+Heterogeneity statistics are summarised below
+`r kable(allexpcollapsed.hettable, digits=5, row.names=NA, col.names=c("*Q*", "*p*", "*I^2^*"),caption="Heterogeneity Summary Table for Multivariate Three-Level Model")`
+<!-- Expand the forest plot width to 14 inches -->
+
+
+#forest by DV
+```{r fig.width=14, fig.height=12} 
+forest(allexpcollapsed, alim=c(-1,2), xlim=c(-4,4), ilab=totalexp_study[,c("i_n_post", "c_n_post")], ilab.xpos= c(-2,-1), xlab = "Parent Training", cex=.8, showweights = TRUE)
+op <- par(font=4)
+# the columns are from -2 to 2 (xlim)
+text(-4, allexpcollapsed$k+2, "Author(s), Year, and Study #",    pos=4, cex=.8)
+text( 4, allexpcollapsed$k+2, "Observed [95% CI]",  pos=2, cex=.8)
+text(-2, allexpcollapsed$k+2, "Sample size i",                  cex=.8)
+text(-1, allexpcollapsed$k+2, "Sample size c",                  cex=.8)
+par(op)
+
+
+forest(allexpcollapsed2, alim=c(-1,2), xlim=c(-4,4), ilab=totalexp_study2[,c("i_n_post", "c_n_post")], ilab.xpos= c(-2,-1), xlab = "Parent Well-Being", cex=.8, showweights = TRUE)
+op <- par(font=4)
+# the columns are from -2 to 2 (xlim)
+text(-4, allexpcollapsed2$k+2, "Author(s), Year, and Study #",    pos=4, cex=.8)
+text( 4, allexpcollapsed2$k+2, "Observed [95% CI]",  pos=2, cex=.8)
+text(-2, allexpcollapsed2$k+2, "Sample size i",                  cex=.8)
+text(-1, allexpcollapsed2$k+2, "Sample size c",                  cex=.8)
+par(op)
+
+
+forest(allexpcollapsed3, alim=c(-1,2), xlim=c(-4,4), ilab=totalexp_study3[,c("N_i_gross", "N_c_gross")], ilab.xpos= c(-2,-1), xlab = "Child Outcomes", cex=.8, showweights = TRUE)
+op <- par(font=4)
+# the columns are from -2 to 2 (xlim)
+text(-4, allexpcollapsed3$k+2, "Author(s), Year, and Study #",    pos=4, cex=.8)
+text( 4, allexpcollapsed3$k+2, "Observed [95% CI]",  pos=2, cex=.8)
+text(-2, allexpcollapsed3$k+2, "Sample size i",                  cex=.8)
+text(-1, allexpcollapsed3$k+2, "Sample size c",                  cex=.8)
+par(op)
+
+forest(allexpcollapsedall, alim=c(-1,2), xlim=c(-4,4), ilab=totalexp_studyall[,c("i_n_post", "c_n_post")], ilab.xpos= c(-2,-1), xlab = "Combined Outcomes", cex=.8, showweights = TRUE)
+op <- par(font=4)
+# the columns are from -2 to 2 (xlim)
+text(-4, allexpcollapsed3$k+2, "Author(s), Year, and Study #",    pos=4, cex=.1)
+text( 3, allexpcollapsed2$k+2, "Weight",  pos=2, cex=.8)
+text( 4, allexpcollapsed3$k+2, "Observed [95% CI]",  pos=2, cex=.8)
+text(-2, allexpcollapsed3$k+2, "Sample size i",                  cex=.8)
+text(-1, allexpcollapsed3$k+2, "Sample size c",                  cex=.8)
+par(op)
+#total sample size intervention: 1469
+#total sample size control: 800
+```
+
+### Publication Bias ###
+
+#### Basic tests ####
+
+[Note: Below are some common tests for publication bias. You may add or remove. Read Carter, Schönbrodt, Gervais, and Hilgard (2018) for a comprehensive review and comparison of publication bias tests in psychology: https://journals.sagepub.com/doi/abs/10.1177/2515245919847196]
+
+Please read Schwarzer, Carpenter and Rücker (2015) book chapter 5 pages 107-138 for for explanation of trimfill and failsafe. 
+(Also, can check Borenstein, Hedges, Higgins & Rothstein (2009) book, pages 284-287 )
+
+### Funnel plot ###
+In a funnel plot, the standard error or inverse of the standard error is plotted against observed effect sizes. Without publication bias, the plot should look like an inverted funnel whereas asymmetric funnel plots may imply publication bias. For details, read Copas and Shi (2000) - https://academic.oup.com/biostatistics/article/1/3/247/260794
+
+```{r fig.width=14, fig.height=6}
+funnel.rma(allexpcollapsed)
+funnel.rma(allexpcollapsed2)
+funnel.rma(allexpcollapsed3)
+
+# http://www.metafor-project.org/doku.php/plots:contour_enhanced_funnel_plot
+# The below notes are adapted from Fillon, Kutscher, and Feldman (2020) RMD
+# Note that the second funnel below is centered NOT at the model estimate (as is usually done when drawing funnel plots, like in the first funnel above), but at 0 (i.e., at the value under the null hypothesis of no effect). Various levels of statistical significance of the points/studies are indicated by the shaded regions. In particular, the unshaded  white) region in the middle corresponds to p-values greater than .10, the gray-shaded region corresponds to p-values between .10 and .05, the dark gray-shaded region corresponds to p-values between .05 and .01, and the region outside of the funnel corresponds to p-values below .01. Funnel plots drawn in this way are more useful for detecting publication bias due to the suppression of non-significant findings. See Peters, Sutton, Jones, Abrams, and Rushton (2008) (https://www.ncbi.nlm.nih.gov/pubmed/18538991) for more details. Note that, based on Sterne and Egger (2001), the vertical axis represents the standard error (as compared to Peters et al., 2008, who use the inverse of the standard error on the vertical axis).
+funnel.rma(allexpcollapsed, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE, xlab = "Parent Training")
+funnel.rma(allexpcollapsed2, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE, xlab = "Parent Wellbeing")
+funnel.rma(allexpcollapsed3, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE, xlab = "Child Outcomes")
+
+funnel.rma(allexpcollapsedml2, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE,xlab = "Parent Training")
+funnel.rma(allexpcollapsedmldv2, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE,xlab = "Parent Wellbeing")
+funnel.rma(allexpcollapsedmldv3, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE, xlab = "Child Outcomes")
+funnel.rma(allexpcollapsedallml, level=c(90, 95, 99), shade=c("white", "gray55", "gray75"), refline=0, legend=FALSE, xlab = "Across Outcomes")
+```
+
+
+### Trim and Fill ###
+Trim and Fill is based on funnel plot. It aims at estimating possibly missing studies as a result of publication bias in the funnel plot, in order to adjust the effect estimate (Shi & Lin, 2019). For details, read Shi and Lin (2019) (https://journals.lww.com/md-journal/fulltext/2019/06070/the_trim_and_fill_method_for_publication_bias_.70.aspx) and Duval and Tweedie (2000) (http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.943.1394&rep=rep1&type=pdf) for details.
+
+#cannot calculcate for multilevel model, but at fixed, reduces effect for child outcomes. Others reduce, slightly, but remain similar.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Run trim and fill
+taf <- trimfill(allexpcollapsed)
+taf
+#DV1
+# Estimated number of missing studies on the left side: 4 (SE = 3.0844)
+# 
+# Random-Effects Model (k = 25; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0429 (SE = 0.0239)
+# tau (square root of estimated tau^2 value):      0.2072
+# I^2 (total heterogeneity / total variability):   55.10%
+# H^2 (total variability / sampling variability):  2.23
+# 
+# Test for Heterogeneity:
+# Q(df = 24) = 51.3717, p-val = 0.0009
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.1817  0.0587  3.0975  0.0020  0.0667  0.2967  ** 
+
+taf <- trimfill(allexpcollapsed2)
+taf
+#DV2
+# Estimated number of missing studies on the left side: 0 (SE = 2.5573)
+# 
+# Random-Effects Model (k = 16; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0085 (SE = 0.0156)
+# tau (square root of estimated tau^2 value):      0.0923
+# I^2 (total heterogeneity / total variability):   18.63%
+# H^2 (total variability / sampling variability):  1.23
+# 
+# Test for Heterogeneity:
+# Q(df = 15) = 23.2162, p-val = 0.0797
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.2210  0.0551  4.0096  <.0001  0.1130  0.3290  *** 
+
+taf <- trimfill(allexpcollapsed3)
+taf
+#DV3
+# Estimated number of missing studies on the left side: 4 (SE = 3.1550)
+# 
+# Random-Effects Model (k = 26; tau^2 estimator: REML)
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.1019 (SE = 0.0416)
+# tau (square root of estimated tau^2 value):      0.3192
+# I^2 (total heterogeneity / total variability):   74.01%
+# H^2 (total variability / sampling variability):  3.85
+# 
+# Test for Heterogeneity:
+# Q(df = 25) = 83.7102, p-val < .0001
+# 
+# Model Results:
+# 
+# estimate      se    zval    pval   ci.lb   ci.ub 
+#   0.1860  0.0756  2.4595  0.0139  0.0378  0.3343  *  
+
+```
+
+### Rank test ###
+Rank test is a correlational test based on funnel plot asymmetry, aiming to assess the association between standardized effect size and its standard error, with Kendall's tau as the measure of association. Strong correlation may imply publication bias. Read Begg and Mazumdar (1994) (https://www.ncbi.nlm.nih.gov/pubmed/7786990) for details.
+
+#not significant for non-multilevel model, multilevel model cannot calculate exact p value.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# To make the assymetry test more statistical rather than visual, let's do a ranktest
+ranktest(allexpcollapsed)
+#DV1
+# Rank Correlation Test for Funnel Plot Asymmetry
+# 
+# Kendall's tau = 0.2571, p = 0.1101
+ranktest(allexpcollapsed2)
+# Rank Correlation Test for Funnel Plot Asymmetry
+# 
+# Kendall's tau = 0.1167, p = 0.5643
+ranktest(allexpcollapsed3)
+# Rank Correlation Test for Funnel Plot Asymmetry
+# 
+# Kendall's tau = 0.2208, p = 0.1603
+
+```
+
+### Egger's Regression test ###
+Egger's regression test is based on asymmetry of the funnel plot. The below mixed-effects meta regression examines the relationship between observed outcomes and standard error. Check Sterne and Egger (2006) (https://www.researchgate.net/publication/281952928_Regression_Methods_to_Detect_Publication_and_Other_Bias_in_Meta-Analysis) for details.
+#not available for multilevel, so assessed at fixed, ns for any
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# To run mixed-effects meta regression with standard error as predictor  
+regtest(allexpcollapsed)
+#DV1
+# Regression Test for Funnel Plot Asymmetry
+# 
+# model:     mixed-effects meta-regression model
+# predictor: standard error
+# 
+# test for funnel plot asymmetry: z = 1.8189, p = 0.0689
+
+regtest(allexpcollapsed2)
+# Regression Test for Funnel Plot Asymmetry
+# 
+# model:     mixed-effects meta-regression model
+# predictor: standard error
+# 
+# test for funnel plot asymmetry: z = 0.7628, p = 0.4456
+
+regtest(allexpcollapsed3)
+# Regression Test for Funnel Plot Asymmetry
+# 
+# model:     mixed-effects meta-regression model
+# predictor: standard error
+# 
+# test for funnel plot asymmetry: z = 1.8687, p = 0.0617
+
+```
+
+### Fail safe ###
+Fail safe N (or the Rosenthal file drawer analysis) represents the number of studies averaging null results to be added to the observed outcomes to refute significant (alpha = .05) meta-analytic means. Rosenthal proposed that if failsafe N < 5k+10, there is a concern for publication bias. Read Becker (2005) (https://onlinelibrary.wiley.com/doi/10.1002/0470870168.ch7) for details. 
+#concern of pub bias based on this, very low n's (in the 100's)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Fail Safe N
+# https://rdrr.io/cran/metafor/man/fsn.html
+fsn(es, var, data = totalexp_study, type="Rosenthal", alpha=.05)
+#DV1
+# Fail-safe N Calculation Using the Rosenthal Approach
+# 
+# Observed Significance Level: <.0001
+# Target Significance Level:   0.05
+# 
+# Fail-safe N: 282
+
+fsn(es, var, data = totalexp_study2, type="Rosenthal", alpha=.05)
+# Fail-safe N Calculation Using the Rosenthal Approach
+# 
+# Observed Significance Level: <.0001
+# Target Significance Level:   0.05
+# 
+# Fail-safe N: 107
+
+fsn(es, var, data = totalexp_study3, type="Rosenthal", alpha=.05)
+# Fail-safe N Calculation Using the Rosenthal Approach
+# 
+# Observed Significance Level: <.0001
+# Target Significance Level:   0.05
+# 
+# Fail-safe N: 307
+
+```
+
+
+#### Advanced tests ####
+
+### PET PEESE ###
+PET stands for precision-effect test. It is a weighted-least-squares regression test, in which effect size is regressed on its standard error. PEESE stands for the precision-effect estimate with standard error (PEESE). It is a weighted-least-squares regression test, in which effect size is regressed on the square of the standard error. The rationale behind these tests is that publication bias is generally stronger with a larger standard error. Purposed by Stanley and Doucouliagos (2014), PET-PEESE considers the statistical significance of the PET estimate to determine the choice of PET versus PEESE as final estimate. When PET is non-significant in a one-sided test with alpha = .05, PET estimate is used. But when the estimate from PET is significant with alpha = .05, the PEESE estimate is used. Read Carter et al. (2019) for details (https://journals.sagepub.com/doi/abs/10.1177/2515245919847196). 
+
+#PET ns for all, so this calculation used.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# The below codes are from Fillon, Kutscher, and Feldman (2020).
+# From http://daniellakens.blogspot.com/2015/04/why-meta-analysis-of-90-precognition.html 
+# First convert variables from our meta-analysis to Daniel's variables
+
+#calculate variance and standard error
+totalexp_study$SE<-sqrt(totalexp_study$var)
+
+#PET
+PET<-lm(totalexp_study$es~totalexp_study$SE, weights = 1/totalexp_study$var)
+summary(PET)
+# Call:
+# lm(formula = totalexp_study$es ~ totalexp_study$SE, weights = 1/totalexp_study$var)
+# 
+# Weighted Residuals:
+#    Min     1Q Median     3Q    Max 
+# -2.181 -0.783 -0.202  0.581  2.504 
+# 
+# Coefficients:
+#                   Estimate Std. Error t value Pr(>|t|)
+# (Intercept)         0.0152     0.1345    0.11     0.91
+# totalexp_study$SE   1.2817     0.7529    1.70     0.10
+# 
+# Residual standard error: 1.17 on 19 degrees of freedom
+# Multiple R-squared:  0.132,	Adjusted R-squared:  0.0867 
+# F-statistic:  2.9 on 1 and 19 DF,  p-value: 0.105
+confint(PET)
+#                    2.5 % 97.5 %
+# (Intercept)       -0.266  0.297
+# totalexp_study$SE -0.294  2.858
+print(c(summary(PET)$coefficients[1], confint(PET)[1,1], confint(PET)[1,2]))
+# DV1 0.0231 -0.2523  0.2986
+
+
+totalexp_study2$SE<-sqrt(totalexp_study2$var)
+
+#PET
+PET2<-lm(totalexp_study2$es~totalexp_study2$SE, weights = 1/totalexp_study2$var)
+summary(PET2)
+# Call:
+# lm(formula = totalexp_study2$es ~ totalexp_study2$SE, weights = 1/totalexp_study2$var)
+# 
+# Weighted Residuals:
+#    Min     1Q Median     3Q    Max 
+# -1.904 -0.926  0.112  1.070  1.997 
+# 
+# Coefficients:
+#                    Estimate Std. Error t value Pr(>|t|)
+# (Intercept)           0.114      0.154    0.74     0.47
+# totalexp_study2$SE    0.577      0.823    0.70     0.49
+# 
+# Residual standard error: 1.27 on 14 degrees of freedom
+# Multiple R-squared:  0.0339,	Adjusted R-squared:  -0.0351 
+# F-statistic: 0.491 on 1 and 14 DF,  p-value: 0.495
+confint(PET2)
+#                     2.5 % 97.5 %
+# (Intercept)        -0.216  0.444
+# totalexp_study2$SE -1.188  2.342
+print(c(summary(PET2)$coefficients[1], confint(PET2)[1,1], confint(PET2)[1,2]))
+# DV2 0.114 -0.216  0.444
+
+totalexp_study3$SE<-sqrt(totalexp_study3$var)
+
+#PET
+PET3<-lm(totalexp_study3$es~totalexp_study3$SE, weights = 1/totalexp_study3$var)
+summary(PET3)
+# Call:
+# lm(formula = totalexp_study3$es ~ totalexp_study3$SE, weights = 1/totalexp_study3$var)
+# 
+# Weighted Residuals:
+#     Min      1Q  Median      3Q     Max 
+# -2.3968 -1.0154  0.0208  1.1494  3.0236 
+# 
+# Coefficients:
+#                    Estimate Std. Error t value Pr(>|t|)  
+# (Intercept)          -0.107      0.172   -0.62    0.541  
+# totalexp_study3$SE    1.913      0.956    2.00    0.059 .
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 1.55 on 20 degrees of freedom
+# Multiple R-squared:  0.167,	Adjusted R-squared:  0.125 
+# F-statistic: 4.01 on 1 and 20 DF,  p-value: 0.059
+confint(PET3)
+#                     2.5 % 97.5 %
+# (Intercept)        -0.4652  0.251
+# totalexp_study3$SE -0.0801  3.907
+print(c(summary(PET3)$coefficients[1], confint(PET3)[1,1], confint(PET3)[1,2]))
+# DV3 -0.107 -0.465  0.251
+
+#don't need to run for any because PET is ns for all
+#PEESE
+PEESE<-lm(totalexp$es~totalexp$var, weights = 1/totalexp$var)
+summary(PEESE)
+confint(PEESE)
+print(c(summary(PEESE)$coefficients[1], confint(PEESE)[1,1], confint(PEESE)[1,2]))
+
+
+```
+
+### puniform ###
+P-uniform focuses on statistically-significant results. It is based on the assumption that p-distribution is "uniform conditional on the population effect size" (van Assen, van Aert, & Wicherts, 2015). It provides a bias-corrected fixed-effects estimate. Read Carter et al. (2019) for details (https://journals.sagepub.com/doi/abs/10.1177/2515245919847196). 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Run puniform
+if(!require(puniform)){install.packages('puniform')}
+library(puniform)
+
+puniform (yi=totalexp_study$es, vi=totalexp_study$var, side="right", method="P", plot = "FALSE")
+
+# DV1Method: P
+# Effect size estimation p-uniform
+# 
+#        est     ci.lb     ci.ub       L.0      pval      ksig
+#      0.456     0.148     0.756     -2.52    0.0059         5
+# 
+# ===
+# 
+# Publication bias test p-uniform
+# 
+#       L.pb      pval
+#      -1.52     0.935
+# 
+# ===
+# 
+# Fixed-effect meta-analysis
+# 
+#     est.fe     se.fe   zval.fe pval.fe  ci.lb.fe  ci.ub.fe     Qstat     Qpval
+#      0.231     0.039      5.92   <.001     0.154     0.307      29.7    0.0744
+
+puniform (yi=totalexp_study2$es, vi=totalexp_study2$var, side="right", method="P", plot = "FALSE")
+# Method: P
+# 
+# Effect size estimation p-uniform
+# 
+#        est     ci.lb     ci.ub       L.0      pval      ksig
+#      0.142     -0.32     0.519     -0.72     0.236         6
+# 
+# ===
+# 
+# Publication bias test p-uniform
+# 
+#       L.pb      pval
+#      0.386      0.35
+# 
+# ===
+# 
+# Fixed-effect meta-analysis
+# 
+#     est.fe     se.fe   zval.fe pval.fe  ci.lb.fe  ci.ub.fe     Qstat     Qpval
+#      0.213    0.0467      4.57   <.001     0.122     0.305      23.2    0.0797
+
+
+puniform (yi=totalexp_study3$es, vi=totalexp_study3$var, side="right", method="P", plot = "FALSE")
+
+# Method: P
+# 
+# Effect size estimation p-uniform
+# 
+#        est     ci.lb     ci.ub       L.0      pval      ksig
+#      0.383    0.0917     0.621     -2.44    0.0074        10
+# 
+# ===
+# 
+# Publication bias test p-uniform
+# 
+#       L.pb      pval
+#      -1.16     0.876
+# 
+# ===
+# 
+# Fixed-effect meta-analysis
+# 
+#     est.fe     se.fe   zval.fe pval.fe  ci.lb.fe  ci.ub.fe     Qstat   Qpval
+#      0.216    0.0383      5.63   <.001     0.141     0.291      57.9   <.001
+
+```
+
+### Three-parameter selection model ###
+Developed by Iyengar and Greenhouse (1988), the three parameters represent
+the average true underlying effect size, the heterogeneity of the
+random effect sizes and the probability that a non-significant effect goes into the literature. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# The below lines are from from Fillon, Kutscher, and Feldman (2020).
+# Run Three-parameter selection model
+# weightr: https://www.rdocumentation.org/packages/weightr/versions/1.0.0/topics/weightfunct
+weightfunct(totalexp_study$es, totalexp_study$var, steps=c(.05/2,1))
+# Unadjusted Model (k = 21):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0083 (SE = 0.0148)
+# tau (square root of estimated tau^2 value):  0.0910
+# 
+# Test for Heterogeneity:
+# Q(df = 20) = 29.7250, p-val = 0.0977
+# 
+# Model Results:
+# 
+#           estimate std.error z-stat     p-val  ci.lb  ci.ub
+# Intercept   0.2432   0.04839  5.026 0.0000005 0.1484 0.3381
+# 
+# Adjusted Model (k = 21):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0188 (SE = 0.0234)
+# tau (square root of estimated tau^2 value):  0.1370
+# 
+# Test for Heterogeneity:
+# Q(df = 20) = 29.7250, p-val = 0.0977
+# 
+# Model Results:
+# 
+#               estimate std.error z-stat p-val    ci.lb  ci.ub
+# Intercept       0.3097    0.1071  2.890 0.004  0.09967 0.5197
+# 0.025 < p < 1   2.1576    2.0372  1.059 0.290 -1.83514 6.1504
+# 
+# Likelihood Ratio Test:
+# X^2(df = 1) = 0.638, p-val = 0.4
+# 
+weightfunct(totalexp_study2$es, totalexp_study2$var, steps=c(.05/2,1))
+# Unadjusted Model (k = 16):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0000 (SE =   NaN)
+# tau (square root of estimated tau^2 value):  0.0000
+# 
+# Test for Heterogeneity:
+# Q(df = 15) = 23.2162, p-val = 0.108
+# 
+# Model Results:
+# 
+#           estimate std.error z-stat           p-val  ci.lb  ci.ub
+# Intercept   0.2135   0.02969  7.191 0.0000000000006 0.1553 0.2716
+# 
+# Adjusted Model (k = 16):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0000 (SE =   NaN)
+# tau (square root of estimated tau^2 value):  0.0000
+# 
+# Test for Heterogeneity:
+# Q(df = 15) = 23.2162, p-val = 0.108
+# 
+# Model Results:
+# 
+#               estimate std.error z-stat p-val    ci.lb  ci.ub
+# Intercept       0.1041   0.05828  1.786  0.07 -0.01012 0.2183
+# 0.025 < p < 1   0.1336   0.09863  1.355  0.18 -0.05970 0.3269
+# 
+# Likelihood Ratio Test:
+# X^2(df = 1) = 5.79, p-val = 0.02Warning messages:
+# 1: In sqrt(diag(solve(output_unadj$hessian))) : NaNs produced
+# 2: In sqrt(diag(solve(output_adj$hessian))) : NaNs produced
+# 3: In sqrt(diag(solve(x[[1]]$hessian))) : NaNs produced
+# 4: In print.weightfunct(x) :
+#   The adjusted variance component is so close to zero that a border condition prevents a meaningful iterative solution. As long as other model estimates are still 
+# reasonable, the results are identical to those from a fixed-effect analysis.
+
+weightfunct(totalexp_study3$es, totalexp_study3$var, steps=c(.05/2,1))
+# Unadjusted Model (k = 22):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0611 (SE = 0.0307)
+# tau (square root of estimated tau^2 value):  0.2471
+# 
+# Test for Heterogeneity:
+# Q(df = 21) = 57.9427, p-val = 0.0000448
+# 
+# Model Results:
+# 
+#           estimate std.error z-stat   p-val ci.lb  ci.ub
+# Intercept   0.2738   0.06927  3.953 0.00008 0.138 0.4096
+# 
+# Adjusted Model (k = 22):
+# 
+# tau^2 (estimated amount of total heterogeneity): 0.0371 (SE = 0.0265)
+# tau (square root of estimated tau^2 value):  0.1927
+# 
+# Test for Heterogeneity:
+# Q(df = 21) = 57.9427, p-val = 0.0000448
+# 
+# Model Results:
+# 
+#               estimate std.error z-stat p-val    ci.lb  ci.ub
+# Intercept       0.1233   0.09414  1.310   0.2 -0.06118 0.3078
+# 0.025 < p < 1   0.2366   0.20035  1.181   0.2 -0.15612 0.6292
+# 
+# Likelihood Ratio Test:
+# X^2(df = 1) = 3.15, p-val = 0.08
+
+```
+
+### Henmi and Copas (2010) ###
+Henmi and Copas (2010) proposed a new confidence interval for meta-analysis. It retains the assessment of the extra uncertainty of the random effects setting for describing heterogeneity between studies, but focuses on the fixed effects estimate to construct a confidence interval. For more details, read Henmi and Copas (2010) (https://www.ncbi.nlm.nih.gov/pubmed/20963748).
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Henmi & Copas (2010)
+# http://www.metafor-project.org/doku.php/analyses:henmi2010
+hc(allexpcollapsed)
+#DV1
+#    method   tau2 estimate     se  ci.lb  ci.ub 
+# rma   REML 0.0117   0.2466 0.0479 0.1528 0.3404 
+# hc      DL 0.0160   0.2308 0.0524 0.1206 0.3410 
+
+hc(allexpcollapsed2)
+#DV2
+#    method   tau2 estimate     se  ci.lb  ci.ub 
+# rma   REML 0.0085   0.2210 0.0551 0.1130 0.3290 
+# hc      DL 0.0204   0.2135 0.0681 0.0654 0.3615  
+hc(allexpcollapsed3)
+#    method   tau2 estimate     se  ci.lb  ci.ub 
+# rma   REML 0.0661   0.2751 0.0704 0.1371 0.4132 
+# hc      DL 0.0590   0.2157 0.0791 0.0489 0.3824 
+
+
+```
+
+### P-curve ###
+P-curve refers to the distribution of (only) significant (*p* < .05) p-values. It differs from asymmetry tests mentioned above. It is based on the assumption that publication bias is a result of "p-hacking" - which means playing around the data to ensure the p-value drops below 0.05, obtaining "statistical significance". The effect size adjusted estimation is based on significant effects. It is important to recognize that, when the heteorogeneity is medium to high (I sqaure 50% or above, the I square of our study is over 90%), the adjusted effect size is an overestimation (van Aert, Wicherts, & van Assen, 2016 - https://journals.sagepub.com/doi/pdf/10.1177/1745691616650874). For more information about P-curve, please check Simonsohn, Nelson, and Simmons (2014) - https://repository.upenn.edu/cgi/viewcontent.cgi?article=1077&context=oid_papers
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Caution: due to the nested nature of our meta-analysis and lots of missing data, the below p-curve analysis should be interpreted with caution
+
+#To run a p-curve analysis. The below code is adapted based on R codes from Lim, V., & Feldman, G. (2020). Values of the dark side: Meta-analysis of links between Dark Triad traits and personal values. Manuscript in preparation.
+allexpcollapsedforpcurve <- metagen(totalexp_study$es, totalexp_study$SE, studlab = totalexp_study$articlestudy)
+allexpcollapsedforpcurve
+#                                        95%-CI %W(fixed) %W(random)
+# Baker (2017) / 1         0.1633 [-0.1055; 0.4321]       8.1        7.3
+# Breitenstein (2016) / 2  0.1309 [-0.2986; 0.5604]       3.2        4.0
+# Day (2018) / 28          0.3289 [-0.0050; 0.6629]       5.2        5.6
+# Day (2018e) / 28         0.4353 [ 0.1078; 0.7627]       5.4        5.8
+# Dose (2017) / 5          0.4076 [-0.0054; 0.8205]       3.4        4.2
+# Ehrensaft (2016) / 6     0.3308 [-0.2817; 0.9433]       1.6        2.2
+# Enebrink (2012) / 7      0.5592 [ 0.1229; 0.9955]       3.1        3.9
+# Franke (2016) / 9        1.1055 [ 0.5410; 1.6699]       1.8        2.6
+# Ghaderi (2018) / 10      0.0071 [-0.2359; 0.2501]       9.9        8.1
+# Hahlweg (2008) / 11      0.6638 [ 0.1149; 1.2127]       1.9        2.7
+# Jones (2017) / 12        0.1534 [-0.3902; 0.6971]       2.0        2.7
+# Kierfeld (2013) / 13     0.3196 [-0.2457; 0.8848]       1.8        2.6
+# Kirkman (2016) / 14      0.0599 [-0.4903; 0.6102]       1.9        2.7
+# Lessard (2016) / 15     -0.2032 [-0.6793; 0.2728]       2.6        3.4
+# Morawska (2006) / 17     0.2987 [-0.2913; 0.8888]       1.7        2.4
+# Olthuis (2018) / 19      0.2690 [-0.0725; 0.6104]       5.0        5.5
+# Reid (2013) / 20         0.0000 [-0.3749; 0.3749]       4.2        4.8
+# Sanders (2012) / 21      0.5053 [ 0.1551; 0.8556]       4.8        5.3
+# sanders (2014) / 22      0.0457 [-0.2461; 0.3376]       6.9        6.7
+# sourander (2016) / 23    0.1763 [-0.0061; 0.3586]      17.6       10.3
+# stormshack (2019) / 24   0.2620 [-0.0084; 0.5325]       8.0        7.3
+# 
+# Number of studies combined: k = 21
+# 
+#                                       95%-CI    z  p-value
+# Fixed effect model   0.2308 [0.1544; 0.3072] 5.92 < 0.0001
+# Random effects model 0.2500 [0.1512; 0.3488] 4.96 < 0.0001
+# 
+# Quantifying heterogeneity:
+#  tau^2 = 0.0160 [0.0000; 0.0920]; tau = 0.1266 [0.0000; 0.3033];
+#  I^2 = 32.7% [0.0%; 60.4%]; H = 1.22 [1.00; 1.59]
+# 
+# Test of heterogeneity:
+#      Q d.f. p-value
+#  29.72   20  0.0744
+# 
+# Details on meta-analytical method:
+# - Inverse variance method
+# - DerSimonian-Laird estimator for tau^2
+# - Jackson method for confidence interval of tau^2 and tau
+
+allexpcollapsedforpcurve2 <- metagen(totalexp_study2$es, totalexp_study2$SE, studlab = totalexp_study2$articlestudy)
+allexpcollapsedforpcurve2
+#                                       95%-CI %W(fixed) %W(random)
+# Baker (2017) / 1         0.1898 [-0.0739; 0.4534]      12.1       10.4
+# Breitenstein (2016) / 2  0.0353 [-0.5061; 0.5766]       2.9        4.1
+# Dadds (2019) / 4        -0.1769 [-0.6502; 0.2963]       3.7        5.1
+# Day (2018) / 28          0.4040 [ 0.0581; 0.7498]       7.0        7.8
+# Day (2018e) / 28         0.3994 [ 0.0621; 0.7366]       7.4        8.0
+# Ehrensaft (2016) / 6     0.2872 [-0.3249; 0.8993]       2.2        3.4
+# Feil (2018) / 8         -0.3886 [-1.1310; 0.3538]       1.5        2.4
+# Franke (2016) / 9        0.7216 [ 0.1922; 1.2510]       3.0        4.3
+# Hahlweg (2008) / 11      0.4306 [-0.1458; 1.0070]       2.5        3.8
+# Jones (2017) / 12        0.5202 [ 0.0406; 0.9998]       3.6        5.0
+# Kierfeld (2013) / 13     0.9753 [ 0.3195; 1.6311]       1.9        3.0
+# Morawska (2006) / 17    -0.0080 [-0.4483; 0.4322]       4.3        5.7
+# Olthuis (2018) / 19      0.2997 [-0.1181; 0.7175]       4.8        6.1
+# Sanders (2012) / 21      0.1060 [-0.2423; 0.4543]       6.9        7.7
+# sanders (2014) / 22     -0.0446 [-0.3462; 0.2569]       9.2        9.1
+# sourander (2016) / 23    0.1873 [ 0.0108; 0.3639]      26.9       14.1
+# 
+# Number of studies combined: k = 16
+# 
+#                                       95%-CI    z  p-value
+# Fixed effect model   0.2135 [0.1219; 0.3050] 4.57 < 0.0001
+# Random effects model 0.2269 [0.1028; 0.3509] 3.58   0.0003
+# 
+# Quantifying heterogeneity:
+#  tau^2 = 0.0204 [0.0000; 0.1548]; tau = 0.1428 [0.0000; 0.3935];
+#  I^2 = 35.4% [0.0%; 64.5%]; H = 1.24 [1.00; 1.68]
+# 
+# Test of heterogeneity:
+#      Q d.f. p-value
+#  23.22   15  0.0797
+# 
+# Details on meta-analytical method:
+# - Inverse variance method
+# - DerSimonian-Laird estimator for tau^2
+# - Jackson method for confidence interval of tau^2 and tau
+
+allexpcollapsedforpcurve3 <- metagen(totalexp_study3$es, totalexp_study3$SE, studlab = totalexp_study3$articlestudy)
+allexpcollapsedforpcurve3
+
+#                    95%-CI %W(fixed) %W(random)
+# Baker (2017) / 1         0.0363 [-0.2502; 0.3228]       6.9        5.8
+# Breitenstein (2016) / 2  0.1277 [-0.3417; 0.5971]       2.6        4.0
+# Comer (2017) / 3         0.1535 [-0.4326; 0.7396]       1.6        3.1
+# Dadds (2019) / 4        -0.2087 [-0.6217; 0.2042]       3.3        4.5
+# Day (2018) / 28          0.6274 [ 0.2357; 1.0191]       3.7        4.7
+# Day (2018e) / 28         0.8734 [ 0.4842; 1.2625]       3.7        4.7
+# Dose (2017) / 5          0.2139 [-0.1487; 0.5766]       4.3        5.0
+# Enebrink (2012) / 7      0.7149 [ 0.2962; 1.1335]       3.2        4.4
+# Franke (2016) / 9        0.5024 [-0.0571; 1.0619]       1.8        3.3
+# Ghaderi (2018) / 10     -0.1538 [-0.3936; 0.0859]       9.8        6.2
+# Hahlweg (2008) / 11      0.7170 [ 0.1504; 1.2837]       1.8        3.2
+# Jones (2017) / 12        0.4455 [ 0.0051; 0.8859]       2.9        4.2
+# Kierfeld (2013) / 13     0.7120 [ 0.1073; 1.3166]       1.5        3.0
+# Kirkman (2016) / 14     -0.2282 [-0.7636; 0.3072]       2.0        3.5
+# McGrath (2011) / 16      0.4937 [ 0.0914; 0.8960]       3.5        4.6
+# Morawska (2006) / 17     0.1913 [-0.3653; 0.7480]       1.8        3.3
+# Olthuis (2018) / 19      0.5645 [ 0.1411; 0.9878]       3.1        4.4
+# Reid (2013) / 20         0.0560 [-0.2688; 0.3808]       5.3        5.3
+# Sanders (2012) / 21      0.5502 [ 0.1438; 0.9565]       3.4        4.5
+# sanders (2014) / 22      0.0010 [-0.3166; 0.3186]       5.6        5.4
+# sourander (2016) / 23    0.1951 [ 0.0286; 0.3617]      20.3        7.0
+# stormshack (2019) / 24   0.0068 [-0.2625; 0.2761]       7.8        5.9
+# 
+# Number of studies combined: k = 22
+# 
+#                                       95%-CI    z  p-value
+# Fixed effect model   0.2157 [0.1406; 0.2908] 5.63 < 0.0001
+# Random effects model 0.2732 [0.1399; 0.4065] 4.02 < 0.0001
+# 
+# Quantifying heterogeneity:
+#  tau^2 = 0.0590 [0.0206; 0.1750]; tau = 0.2430 [0.1437; 0.4184];
+#  I^2 = 63.8% [42.8%; 77.0%]; H = 1.66 [1.32; 2.09]
+# 
+# Test of heterogeneity:
+#      Q d.f.  p-value
+#  57.94   21 < 0.0001
+# 
+# Details on meta-analytical method:
+# - Inverse variance method
+# - DerSimonian-Laird estimator for tau^2
+# - Jackson method for confidence interval of tau^2 and tau
+
+# devtools::install("~/Downloads/dmetar-master/")
+library("dmetar")
+par("mar")
+par(mar=c(1,1,1,1))
+graphics.off()
+pcurve(allexpcollapsedforpcurve, effect.estimation = TRUE, N = totalexp_study$N_gross, dmin = 0, dmax = 2)
+# P-curve analysis 
+#  ----------------------- 
+# - Total number of provided studies: k = 21 
+# - Total number of p<0.05 studies included into the analysis: k = 5 (23.81%) 
+# - Total number of studies with p<0.025: k = 5 (23.81%) 
+#    
+# Results 
+#  ----------------------- 
+#                     pBinomial zFull pFull zHalf pHalf
+# Right-skewness test     0.031 -2.73 0.003 -1.48 0.070
+# Flatness test           1.000  1.07 0.857  2.44 0.993
+# Note: p-values of 0 or 1 correspond to p<0.001 and p>0.999, respectively.   
+# Power Estimate: 64% (18.3%-91.4%)
+#    
+# Evidential value 
+#  ----------------------- 
+# - Evidential value present: yes 
+# - Evidential value absent/inadequate: no 
+#    
+# P-curve's estimate of the true effect size: d=0.408 
+pcurve(allexpcollapsedforpcurve2, effect.estimation = TRUE, N = totalexp_study2$N_gross, dmin = 0, dmax = 2)
+# P-curve analysis 
+#  ----------------------- 
+# - Total number of provided studies: k = 16 
+# - Total number of p<0.05 studies included into the analysis: k = 6 (37.5%) 
+# - Total number of studies with p<0.025: k = 4 (25%) 
+#    
+# Results 
+#  ----------------------- 
+#                     pBinomial  zFull pFull zHalf pHalf
+# Right-skewness test     0.344 -0.721 0.236 0.241 0.595
+# Flatness test           0.549 -0.775 0.219 1.567 0.941
+# Note: p-values of 0 or 1 correspond to p<0.001 and p>0.999, respectively.   
+# Power Estimate: 13% (5%-60.4%)
+#    
+# Evidential value 
+#  ----------------------- 
+# - Evidential value present: no 
+# - Evidential value absent/inadequate: no 
+#    
+# P-curve's estimate of the true effect size: d=0.075
+pcurve(allexpcollapsedforpcurve3, effect.estimation = TRUE, N = totalexp_study3$N_gross, dmin = 0, dmax = 2)
+# P-curve analysis 
+#  ----------------------- 
+# - Total number of provided studies: k = 22 
+# - Total number of p<0.05 studies included into the analysis: k = 10 (45.45%) 
+# - Total number of studies with p<0.025: k = 9 (40.91%) 
+#    
+# Results 
+#  ----------------------- 
+#                     pBinomial zFull pFull zHalf pHalf
+# Right-skewness test     0.011 -2.92 0.002 -1.65 0.049
+# Flatness test           0.965  0.71 0.761  3.32 1.000
+# Note: p-values of 0 or 1 correspond to p<0.001 and p>0.999, respectively.   
+# Power Estimate: 49% (15.7%-78.9%)
+#    
+# Evidential value 
+#  ----------------------- 
+# - Evidential value present: yes 
+# - Evidential value absent/inadequate: no 
+#    
+# P-curve's estimate of the true effect size: d=0.355   
+#    
+# Warning: I-squared of the meta-analysis is >= 50%, so effect size estimates are not trustworthy.
+```
+
+#Robutness of effect tests
+```{r}
+ l_one <- leave1out(allexpcollapsed)
+# estimate     se   zval   pval  ci.lb  ci.ub       Q     Qp   tau2      I2     H2 
+# Baker (2017) / 1          0.2568 0.0523 4.9060 0.0000 0.1542 0.3594 29.4612 0.0591 0.0160 31.7586 1.4654 
+# Breitenstein (2016) / 2   0.2534 0.0503 5.0335 0.0000 0.1547 0.3521 29.5105 0.0584 0.0142 30.3651 1.4361 
+# Day (2018) / 28           0.2439 0.0509 4.7947 0.0000 0.1442 0.3436 29.3749 0.0603 0.0143 30.0387 1.4294 
+# Day (2018e) / 28          0.2338 0.0485 4.8222 0.0000 0.1388 0.3288 28.1411 0.0808 0.0104 23.8586 1.3133 
+# Dose (2017) / 5           0.2403 0.0493 4.8741 0.0000 0.1437 0.3369 28.9960 0.0660 0.0124 27.5421 1.3801 
+# Ehrensaft (2016) / 6      0.2457 0.0491 5.0081 0.0000 0.1495 0.3419 29.6210 0.0568 0.0128 28.6548 1.4016 
+# Enebrink (2012) / 7       0.2320 0.0469 4.9461 0.0000 0.1401 0.3239 27.4794 0.0940 0.0089 21.5297 1.2744 
+# Franke (2016) / 9         0.2172 0.0413 5.2620 0.0000 0.1363 0.2982 20.3287 0.3750 0.0020  6.0052 1.0639 
+# Ghaderi (2018) / 10       0.2635 0.0459 5.7387 0.0000 0.1735 0.3535 26.1108 0.1271 0.0057 13.9432 1.1620 
+# Hahlweg (2008) / 11       0.2337 0.0468 4.9918 0.0000 0.1419 0.3254 27.2876 0.0981 0.0092 22.2875 1.2868 
+# Jones (2017) / 12         0.2507 0.0496 5.0509 0.0000 0.1534 0.3480 29.6456 0.0565 0.0135 29.6854 1.4222 
+# Kierfeld (2013) / 13      0.2459 0.0493 4.9898 0.0000 0.1493 0.3425 29.6284 0.0567 0.0130 28.9327 1.4071 
+# Kirkman (2016) / 14       0.2529 0.0495 5.1129 0.0000 0.1559 0.3498 29.3473 0.0607 0.0133 29.3034 1.4145 
+# Lessard (2016) / 15       0.2596 0.0475 5.4674 0.0000 0.1665 0.3526 26.4467 0.1182 0.0099 23.5041 1.3073 
+# Morawska (2006) / 17      0.2465 0.0492 5.0070 0.0000 0.1500 0.3430 29.6732 0.0561 0.0130 28.9659 1.4078 
+# Olthuis (2018) / 19       0.2482 0.0513 4.8341 0.0000 0.1476 0.3489 29.6744 0.0561 0.0151 31.3480 1.4566 
+# Reid (2013) / 20          0.2593 0.0493 5.2558 0.0000 0.1626 0.3560 28.2059 0.0795 0.0122 27.0496 1.3708 
+# Sanders (2012) / 21       0.2283 0.0464 4.9154 0.0000 0.1372 0.3193 27.2468 0.0990 0.0077 18.8708 1.2326 
+# sanders (2014) / 22       0.2614 0.0498 5.2509 0.0000 0.1639 0.3590 28.0666 0.0822 0.0121 26.2795 1.3565 
+# sourander (2016) / 23     0.2592 0.0539 4.8071 0.0000 0.1535 0.3649 29.3079 0.0613 0.0173 31.4839 1.4595 
+# stormshack (2019) / 24    0.2493 0.0526 4.7439 0.0000 0.1463 0.3523 29.6693 0.0562 0.0163 32.3103 1.4773 
+
+l_one2 <- leave1out(allexpcollapsed2)
+#                     estimate     se   zval   pval  ci.lb  ci.ub       Q     Qp   tau2      I2     H2 
+# Baker (2017) / 1          0.2309 0.0665 3.4730 0.0005 0.1006 0.3612 23.1810 0.0574 0.0197 32.8984 1.4903 
+# Breitenstein (2016) / 2   0.2304 0.0588 3.9158 0.0001 0.1151 0.3457 22.7878 0.0638 0.0119 24.8711 1.3310 
+# Dadds (2019) / 4          0.2366 0.0536 4.4148 0.0000 0.1316 0.3416 20.5007 0.1151 0.0054 12.8270 1.1471 
+# Day (2018) / 28           0.2047 0.0559 3.6636 0.0002 0.0952 0.3142 21.9627 0.0794 0.0068 15.2350 1.1797 
+# Day (2018e) / 28          0.2044 0.0559 3.6539 0.0003 0.0947 0.3140 21.9563 0.0795 0.0068 15.1065 1.1779 
+# Ehrensaft (2016) / 6      0.2208 0.0583 3.7879 0.0002 0.1065 0.3350 23.1593 0.0577 0.0115 24.3284 1.3215 
+# Feil (2018) / 8           0.2327 0.0550 4.2297 0.0000 0.1249 0.3405 20.6506 0.1109 0.0077 17.8919 1.2179 
+# Franke (2016) / 9         0.1978 0.0474 4.1716 0.0000 0.1049 0.2907 19.5675 0.1444 0.0000  0.0018 1.0000 
+# Hahlweg (2008) / 11       0.2147 0.0570 3.7677 0.0002 0.1030 0.3264 22.6568 0.0661 0.0097 21.2755 1.2703 
+# Jones (2017) / 12         0.2053 0.0532 3.8605 0.0001 0.1010 0.3095 21.5854 0.0875 0.0049 11.9748 1.1360 
+# Kierfeld (2013) / 13      0.1983 0.0472 4.2047 0.0000 0.1059 0.2908 17.9296 0.2100 0.0000  0.0125 1.0001 
+# Morawska (2006) / 17      0.2353 0.0585 4.0219 0.0001 0.1206 0.3500 22.1998 0.0746 0.0109 22.8541 1.2962 
+# Olthuis (2018) / 19       0.2193 0.0608 3.6034 0.0003 0.1000 0.3385 23.0442 0.0596 0.0138 27.1801 1.3733 
+# Sanders (2012) / 21       0.2345 0.0624 3.7595 0.0002 0.1123 0.3568 22.8236 0.0632 0.0151 28.4973 1.3985 
+# sanders (2014) / 22       0.2397 0.0490 4.8894 0.0000 0.1436 0.3357 20.1167 0.1265 0.0000  0.0027 1.0000 
+# sourander (2016) / 23     0.2340 0.0695 3.3669 0.0008 0.0978 0.3702 23.1010 0.0586 0.0225 32.9067 1.4905  
+
+l_one3 <- leave1out(allexpcollapsed3)
+# estimate     se   zval   pval  ci.lb  ci.ub       Q     Qp   tau2      I2     H2 
+# Baker (2017) / 1          0.2901 0.0735 3.9497 0.0001 0.1462 0.4341 56.3263 0.0000 0.0688 66.5578 2.9902 
+# Breitenstein (2016) / 2   0.2824 0.0733 3.8515 0.0001 0.1387 0.4261 57.8043 0.0000 0.0702 68.0824 3.1331 
+# Comer (2017) / 3          0.2801 0.0728 3.8464 0.0001 0.1374 0.4228 57.8988 0.0000 0.0697 68.1362 3.1384 
+# Dadds (2019) / 4          0.2965 0.0704 4.2117 0.0000 0.1585 0.4345 53.7456 0.0001 0.0613 64.8623 2.8459 
+# Day (2018) / 28           0.2572 0.0713 3.6055 0.0003 0.1174 0.3970 53.5363 0.0001 0.0638 65.6600 2.9121 
+# Day (2018e) / 28          0.2405 0.0663 3.6303 0.0003 0.1107 0.3704 46.5463 0.0007 0.0499 59.9142 2.4946 
+# Dose (2017) / 5           0.2797 0.0742 3.7715 0.0002 0.1344 0.4251 57.9426 0.0000 0.0717 68.1091 3.1357 
+# Enebrink (2012) / 7       0.2533 0.0701 3.6102 0.0003 0.1158 0.3907 52.2986 0.0001 0.0607 64.6472 2.8286 
+# Franke (2016) / 9         0.2677 0.0724 3.6994 0.0002 0.1259 0.4096 56.9154 0.0000 0.0682 67.6168 3.0880 
+# Ghaderi (2018) / 10       0.3012 0.0694 4.3383 0.0000 0.1651 0.4372 47.8241 0.0005 0.0568 61.3872 2.5898 
+# Hahlweg (2008) / 11       0.2595 0.0709 3.6599 0.0003 0.1205 0.3985 54.8810 0.0000 0.0640 66.2403 2.9621 
+# Jones (2017) / 12         0.2684 0.0731 3.6713 0.0002 0.1251 0.4116 56.8655 0.0000 0.0693 67.7087 3.0968 
+# Kierfeld (2013) / 13      0.2610 0.0710 3.6733 0.0002 0.1217 0.4002 55.3138 0.0000 0.0646 66.5122 2.9862 
+# Kirkman (2016) / 14       0.2928 0.0709 4.1276 0.0000 0.1538 0.4319 55.2498 0.0000 0.0639 66.1434 2.9536 
+# McGrath (2011) / 16       0.2652 0.0729 3.6387 0.0003 0.1224 0.4081 56.0415 0.0000 0.0683 67.2501 3.0534 
+# Morawska (2006) / 17      0.2791 0.0730 3.8230 0.0001 0.1360 0.4222 57.9353 0.0000 0.0700 68.1935 3.1440 
+# Olthuis (2018) / 19       0.2619 0.0722 3.6291 0.0003 0.1205 0.4034 55.2503 0.0000 0.0665 66.7176 3.0046 
+# Reid (2013) / 20          0.2882 0.0736 3.9187 0.0001 0.1441 0.4324 56.9625 0.0000 0.0695 67.1597 3.0450 
+# Sanders (2012) / 21       0.2622 0.0723 3.6250 0.0003 0.1204 0.4040 55.2473 0.0000 0.0668 66.7508 3.0076 
+# sanders (2014) / 22       0.2911 0.0730 3.9886 0.0001 0.1481 0.4342 56.0844 0.0000 0.0678 66.5319 2.9879 
+# sourander (2016) / 23     0.2826 0.0753 3.7507 0.0002 0.1349 0.4303 57.8695 0.0000 0.0733 65.0720 2.8630 
+# stormshack (2019) / 24    0.2921 0.0731 3.9962 0.0001 0.1488 0.4354 55.4365 0.0000 0.0676 65.9260 2.9348  
+# gp <- gosh(allexpcollapsed)
+mgosh <- gp$res
+mean_est <- mean(mgosh$estimate, na.rm = TRUE)
+#0.254
+mean_range <- range(mgosh$estimate, na.rm = TRUE)
+#-0.0906  0.8795
+gp2 <- gosh(allexpcollapsed2)
+mgosh2 <- gp2$res
+mean_est2 <- mean(mgosh2$estimate, na.rm = TRUE)
+#.229
+mean_range2 <- range(mgosh2$estimate, na.rm = TRUE)
+# -0.389  0.975
+gp3 <- gosh(allexpcollapsed3)
+mgosh3 <- gp3$res
+mean_est3 <- mean(mgosh3$estimate, na.rm = TRUE)
+#.275
+mean_range3 <- range(mgosh3$estimate, na.rm = TRUE)
+#-0.228  0.800
+# dev.off()
+
+# gp_plot <- plot(gp, breaks = 100)
+
+# gp_plot2 <- plot(gp2, breaks = 100)
+
+# gp_plot3 <- plot(gp3, breaks = 100)
+
+```
+
+# Moderator analyses #
+
+### Possible Moderator 1 analyses ###
+#parent training- sig heterogeneity for multivariate 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#first is the mean effect, not using one factor as the base group
+#this is only done for factors. If this is done for continuous variables, that would be removing the intercept, which does not theroertically make sense.
+
+###GROUP 1 MODERATORS ####
+Type_Digital_Media1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Type_Digital_Media -1)
+
+Type_Digital_Media1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0474  0.2178     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 116) = 162.5569, p-val = 0.0028
+# 
+# Test of Moderators (coefficients 1:4):
+# QM(df = 4) = 31.1493, p-val < .0001
+# 
+# Model Results:
+# 
+#                      estimate      se     zval    pval    ci.lb   ci.ub 
+# Type_Digital_Media3   -0.1891  0.2433  -0.7772  0.4370  -0.6660  0.2878      
+# Type_Digital_Media4    0.2418  0.0834   2.8982  0.0038   0.0783  0.4054   ** 
+# Type_Digital_Media5    0.3557  0.1090   3.2637  0.0011   0.1421  0.5692   ** 
+# Type_Digital_Media6    0.3715  0.1096   3.3902  0.0007   0.1567  0.5863  *** 
+
+#significant mean effect
+#now assess if this differs by reference group
+avType_Digital_Media11 <- predict(Type_Digital_Media1,newmods = c(1,1,1,1))
+ # pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+ # 0.7799 0.3001 0.1917 1.3681 0.0532 1.5066 
+Type_Digital_Media1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(Type_Digital_Media, ref = "3"))
+
+Type_Digital_Media1
+# Test of Moderators (coefficients 1:4):
+# QM(df = 3) = 5.1049, p-val = 0.1643
+#but not against a intercept reference group
+
+#but are there sig difference between specific groups?
+anova(Type_Digital_Media1, btt=1:4)
+anova(Type_Digital_Media1, L=c(-1,0,.5,.5))
+# Hypothesis:                                                                                
+# 1: -Type_Digital_Media3 + 0.5*Type_Digital_Media5 + 0.5*Type_Digital_Media6 = 0 
+# 
+# Results:
+#    estimate     se   zval   pval 
+# 1:   0.5527 0.2553 2.1650 0.0304 
+# 
+# Test of Hypothesis:
+# QM(df = 1) = 4.6871, p-val = 0.0304
+
+sync_v_nonsync1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  sync_v_nonsync -1)
+
+sync_v_nonsync1
+ # pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+ # 0.7799 0.3001 0.1917 1.3681 0.0532 1.5066 
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0414  0.2036     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 160.2550, p-val = 0.0049
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 34.6785, p-val < .0001
+# 
+# Model Results:
+# 
+#                  estimate      se    zval    pval    ci.lb   ci.ub 
+# sync_v_nonsync0    0.2406  0.0791  3.0426  0.0023   0.0856  0.3956   ** 
+# sync_v_nonsync1    0.1247  0.1054  1.1830  0.2368  -0.0819  0.3314      
+# sync_v_nonsync2    0.4598  0.0938  4.9012  <.0001   0.2759  0.6436  *** 
+avsync_v_nonsync11 <- predict(sync_v_nonsync1,newmods = c(1,1,1))
+ #  pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+ # 0.8251 0.1618 0.5080 1.1422 0.3155 1.3347 
+sync_v_nonsync1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  relevel(sync_v_nonsync, ref ="1"))
+
+sync_v_nonsync1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0414  0.2036     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 160.2550, p-val = 0.0049
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 6.0887, p-val = 0.0476
+# 
+# Model Results:
+# 
+#                                      estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                                0.1247  0.1054  1.1830  0.2368  -0.0819  0.3314    
+# relevel(sync_v_nonsync, ref = "1")0    0.1159  0.1318  0.8794  0.3792  -0.1424  0.3742    
+# relevel(sync_v_nonsync, ref = "1")2    0.3350  0.1411  2.3740  0.0176   0.0584  0.6116  * 
+anova(sync_v_nonsync1, btt=1:3)
+anova(sync_v_nonsync1, L=c(0,-1,1))
+# Hypothesis:                                                                                           
+# 1: intrcpt - relevel(sync_v_nonsync, ref = "1")0 + relevel(sync_v_nonsync, ref = "1")2 = 0 
+# 
+# Results:
+#    estimate     se   zval   pval 
+# 1:   0.3438 0.1618 2.1255 0.0335 
+# 
+# Test of Hypothesis:
+# QM(df = 1) = 4.5179, p-val = 0.0335
+
+setting_i1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ setting_i -1)
+
+setting_i1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0404  0.2011     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 161.1713, p-val = 0.0043
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 35.9694, p-val < .0001
+# 
+# Model Results:
+# 
+#             estimate      se     zval    pval    ci.lb   ci.ub 
+# setting_i1   -0.1891  0.2285  -0.8275  0.4080  -0.6370  0.2588      
+# setting_i3    0.2075  0.0823   2.5215  0.0117   0.0462  0.3689    * 
+# setting_i4    0.3771  0.0701   5.3783  <.0001   0.2397  0.5145  *** 
+avsetting_i1 <- predict(setting_i1,newmods = c(1,1,1))
+ #   pred     se   ci.lb  ci.ub   cr.lb  cr.ub 
+ # 0.3955 0.2528 -0.1000 0.8911 -0.2377 1.0287 
+ 
+setting_i1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(setting_i, ref ="1"))
+
+setting_i1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0404  0.2011     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 161.1713, p-val = 0.0043
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 6.9067, p-val = 0.0316
+# 
+# Model Results:
+# 
+#                                 estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt                          -0.1891  0.2285  -0.8275  0.4080  -0.6370  0.2588    
+# relevel(setting_i, ref = "1")3    0.3967  0.2429   1.6329  0.1025  -0.0794  0.8728    
+# relevel(setting_i, ref = "1")4    0.5662  0.2391   2.3686  0.0179   0.0977  1.0348  * 
+# anova(setting_i1, btt=1:4)
+# anova(setting_i1, L=c(-1,-1,1))
+
+
+Dosage_number_contacts_i1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  Dosage_number_contacts_i)
+
+Dosage_number_contacts_i1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0585  0.2420     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 118) = 190.2831, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0803, p-val = 0.7769
+# 
+# Model Results:
+# 
+#                           estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                     0.2672  0.0836  3.1980  0.0014   0.1034  0.4309  ** 
+# Dosage_number_contacts_i    0.0036  0.0127  0.2834  0.7769  -0.0212  0.0284 
+
+EvidencedAdapt_i1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ EvidencedAdapt_i-1)
+
+EvidencedAdapt_i1
+EvidencedAdapt_i1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(EvidencedAdapt_i, ref ="0"))
+
+EvidencedAdapt_i1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0373  0.1932     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 164.9500, p-val = 0.0023
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 9.0413, p-val = 0.0109
+# 
+# Model Results:
+# 
+#                                        estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                                  0.1236  0.0989  1.2500  0.2113  -0.0702  0.3175     
+# relevel(EvidencedAdapt_i, ref = "0")1    0.1027  0.1236  0.8313  0.4058  -0.1394  0.3449     
+# relevel(EvidencedAdapt_i, ref = "0")2    0.3923  0.1380  2.8433  0.0045   0.1219  0.6626  ** 
+anova(EvidencedAdapt_i1, btt=2:4)
+anova(EvidencedAdapt_i1, L=c(-1,0,1))
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0373  0.1932     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 117) = 164.9500, p-val = 0.0023
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 39.6949, p-val < .0001
+# 
+# Model Results:
+# 
+#                    estimate      se    zval    pval    ci.lb   ci.ub 
+# EvidencedAdapt_i0    0.1236  0.0989  1.2500  0.2113  -0.0702  0.3175      
+# EvidencedAdapt_i1    0.2264  0.0740  3.0577  0.0022   0.0813  0.3715   ** 
+# EvidencedAdapt_i2    0.5159  0.0962  5.3650  <.0001   0.3274  0.7044  *** 
+
+c_active_v_inactive1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ c_active_v_inactive)
+
+c_active_v_inactive1
+
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0289  0.1701     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 118) = 143.0429, p-val = 0.0582
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 10.3860, p-val = 0.0013
+# 
+# Model Results:
+# 
+#                       estimate      se     zval    pval    ci.lb    ci.ub 
+# intrcpt                 0.3805  0.0562   6.7661  <.0001   0.2703   0.4907  *** 
+# c_active_v_inactive1   -0.3155  0.0979  -3.2227  0.0013  -0.5073  -0.1236   ** 
+
+
+####GROUP 2 MODERATORS####
+SES_total1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ SES_total)
+
+SES_total1
+# Multivariate Meta-Analysis Model (k = 105; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0786  0.2804     15     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 103) = 173.2724, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0916, p-val = 0.7621
+# 
+# Model Results:
+# 
+#             estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt       0.3198  0.1259   2.5402  0.0111   0.0730  0.5665  * 
+# SES_total1   -0.0487  0.1608  -0.3027  0.7621  -0.3639  0.2665  
+
+
+
+Parent_education_total1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Parent_education_total)
+
+Parent_education_total1
+
+# Multivariate Meta-Analysis Model (k = 113; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0644  0.2537     19     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 111) = 185.9877, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0001, p-val = 0.9902
+# 
+# Model Results:
+# 
+#                          estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                    0.2773  0.0704  3.9362  <.0001   0.1392  0.4153  *** 
+# Parent_education_total1    0.0017  0.1402  0.0122  0.9902  -0.2730  0.2764  Multivariate Meta-Analysis Model (k = 113; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0644  0.2537     19     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 111) = 185.9877, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0001, p-val = 0.9902
+# 
+# Model Results:
+# 
+#                          estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                    0.2773  0.0704  3.9362  <.0001   0.1392  0.4153  *** 
+# Parent_education_total1    0.0017  0.1402  0.0122  0.9902  -0.2730  0.2764 
+
+
+#######GROUP 3 MODERATORS########
+Child_medication1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_medication)
+
+Child_medication1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0511  0.2262     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 118) = 186.2309, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 1.9959, p-val = 0.1577
+# 
+# Model Results:
+# 
+#                    estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt              0.3214  0.0632   5.0876  <.0001   0.1976  0.4451  *** 
+# Child_medication1   -0.2049  0.1451  -1.4127  0.1577  -0.4892  0.0794   
+
+
+percent_male_total1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ percent_male_total)
+
+percent_male_total1
+# Multivariate Meta-Analysis Model (k = 88; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0622  0.2495     13     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 86) = 115.1227, p-val = 0.0197
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0944, p-val = 0.7587
+# 
+# Model Results:
+# 
+#                     estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt               0.4677  0.4199   1.1138  0.2654  -0.3553  1.2906    
+# percent_male_total   -0.0022  0.0072  -0.3072  0.7587  -0.0162  0.0118   
+
+Child_diagnostic_category1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_diagnostic_category-1)
+
+Child_diagnostic_category1
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0649  0.2547     17     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 96) = 150.5522, p-val = 0.0003
+# 
+# Test of Moderators (coefficients 1:5):
+# QM(df = 5) = 17.2123, p-val = 0.0041
+# 
+# Model Results:
+# 
+#                             estimate      se    zval    pval    ci.lb   ci.ub 
+# Child_diagnostic_category1    0.0781  0.2057  0.3795  0.7043  -0.3251  0.4812     
+# Child_diagnostic_category2    0.0503  0.2813  0.1789  0.8581  -0.5009  0.6015     
+# Child_diagnostic_category4    0.3288  0.1051  3.1277  0.0018   0.1227  0.5348  ** 
+# Child_diagnostic_category5    0.2919  0.1159  2.5173  0.0118   0.0646  0.5191   * 
+# Child_diagnostic_category6    0.2612  0.2727  0.9577  0.3382  -0.2733  0.7957   
+
+avchild1 <- predict(Child_diagnostic_category1,newmods = c(1,1,1,1,1))
+ #   pred     se  ci.lb  ci.ub   cr.lb  cr.ub 
+ # 1.0102 0.4693 0.0903 1.9301 -0.0364 2.0568 
+avchild1 <- predict(Child_diagnostic_category1,newmods = c(0,0,1,1,0))
+ #  pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+ # 0.6206 0.1565 0.3139 0.9274 0.0348 1.2065 
+Child_diagnostic_category1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(Child_diagnostic_category, ref ="1"))
+
+Child_diagnostic_category1
+
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0649  0.2547     17     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 96) = 150.5522, p-val = 0.0003
+# 
+# Test of Moderators (coefficients 2:5):
+# QM(df = 4) = 1.8289, p-val = 0.7672
+
+anova(Child_diagnostic_category1, btt=3:6)
+anova(Child_diagnostic_category1, L=c(-1,0,1))
+
+Age_M1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Age_M)
+
+Age_M1
+# Multivariate Meta-Analysis Model (k = 90; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0644  0.2537     13     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 88) = 144.6333, p-val = 0.0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 2.4686, p-val = 0.1161
+# 
+# Model Results:
+# 
+#          estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt    0.6940  0.2316   2.9964  0.0027   0.2401  1.1480  ** 
+# Age_M     -0.0689  0.0438  -1.5712  0.1161  -0.1548  0.0170  
+
+######GROUP 4 MODERATORS #######
+
+ROB1 <- rma.mv(yi,vi, method = "REML", data = dataset1,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = cbind(Allocation_concealment,Blinding_outcome_assessment, Incomplete_outcome_data, Selective_outcome_reporting))
+ROB1
+# Multivariate Meta-Analysis Model (k = 120; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0606  0.2462     21     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 115) = 168.4522, p-val = 0.0009
+# 
+# Test of Moderators (coefficients 2:5):
+# QM(df = 4) = 2.6291, p-val = 0.6217
+# 
+# Model Results:
+# 
+#                              estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt                        0.2018  0.2645   0.7630  0.4455  -0.3166  0.7203    
+# Allocation_concealment        -0.0163  0.0900  -0.1807  0.8566  -0.1927  0.1602    
+# Blinding_outcome_assessment    0.0910  0.1492   0.6099  0.5419  -0.2014  0.3833    
+# Incomplete_outcome_data       -0.1250  0.1305  -0.9576  0.3383  -0.3808  0.1308    
+# Selective_outcome_reporting    0.1455  0.1108   1.3139  0.1889  -0.0716  0.3626  
+avROB1 <- predict(ROB1,newmods = c(1,1,1,1))
+# pred     se  ci.lb  ci.ub   cr.lb  cr.ub 
+#  0.2971 0.0980 0.1051 0.4891 -0.2223 0.8165 
+```
+
+#Metacart
+#DV1 #
+````{r}
+install.packages("metacart")
+library(metacart)
+ROB1 <- REmrt(yi ~ Allocation_concealment + Blinding_outcome_assessment + Incomplete_outcome_data + Selective_outcome_reporting, data = dataset1, vi= vi, lookahead = FALSE)
+summary(ROB1)
+plot(ROB1)
+media1 <- REmrt(yi ~ Type_Digital_Media, data = dataset1, vi= vi, lookahead = FALSE)
+#no moderator
+sync1 <- REmrt(yi ~ sync_v_nonsync, data = dataset1, vi= vi, lookahead = FALSE)
+summary(sync1)
+plot(sync1)
+setting1 <- REmrt(yi ~ setting_i, data = dataset1, vi= vi, lookahead = FALSE)
+summary(setting1)
+plot(setting1)
+activec1 <- REmrt(yi ~ c_active_v_inactive, data = dataset1, vi= vi, lookahead = FALSE)
+summary(activec1)
+plot(activec1)
+evidence1 <- REmrt(yi ~ EvidencedAdapt_i, data = dataset1, vi= vi, lookahead = FALSE)
+summary(evidence1)
+plot(evidence1)
+dosage1 <- REmrt(yi ~ Dosage_number_contacts_i, data = dataset1, vi= vi, lookahead = FALSE)
+summary(dosage1)
+plot(dosage1)
+combined1 <- REmrt(yi ~ Type_Digital_Media + Dosage_number_contacts_i + sync_v_nonsync + c_active_v_inactive + EvidencedAdapt_i, data = dataset1, vi= vi, lookahead = FALSE)
+summary(combined1)
+plot(combined1)
+```
+
+#metaForest
+## DV1 ##
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+######## moderators
+
+## Below is adapted based on Bialek, M., Gao, Y., Yao, D., & Feldman, G. (2020). Owning leads to valuing: Meta-analysis of the Mere Ownership Effect. Manuscript in preparation. Preprint retrieved from https://www.researchgate.net/publication/326462915_Owning_leads_to_valuing_Meta-analysis_of_the_Mere_Ownership_Effect, as well as Yeung. S. K., Yay, T., Feldman, G. (2020) Omission-commission asymmetries in morality and decisions: Meta-analysis of the Omission-bias
+
+#intervention moderators
+set.seed(42)
+mf.random <- MetaForest(formula = yi ~ 
+                        Type_Digital_Media + 
+                                  sync_v_nonsync + 
+                          EvidencedAdapt_i +  
+                          Dosage_number_contacts_i + c_active_v_inactive,
+                                data = dataset1,
+                                whichweights = "random",
+                                num.trees = 5000, 
+                                method = "REML")
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+#Univariate partial dependence plot
+PartialDependence(mf.random, vars = "Type_Digital_Media")
+PartialDependence(mf.random, vars = "sync_v_nonsync")
+PartialDependence(mf.random, vars = "EvidencedAdapt_i")
+PartialDependence(mf.random, vars = "Dosage_number_contacts_i")
+PartialDependence(mf.random, vars = "c_active_v_inactive")
+
+
+
+#family characteristics moderators
+dataset1ses <- dataset1 %>%
+  filter(SES_total == 0 | SES_total == 1)
+mf.random <- MetaForest(formula = yi ~  
+                          Parent_education_total,
+                                data = dataset1ses,
+                                whichweights = "random",
+                                num.trees = 3000, 
+                                method = "REML")
+mf.random <- MetaForest(formula = yi ~  SES_total,
+                                data = dataset1ses,
+                                whichweights = "random",
+                                num.trees = 5000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+#child moderators
+dataset1child <- dataset1 %>%
+  filter(Child_diagnostic_category != "0")
+mf.random <- MetaForest(formula = yi ~  Child_medication + Child_diagnostic_category,
+                                data = dataset1child,
+                                whichweights = "random",
+                                num.trees = 4000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+PartialDependence(mf.random, vars = "Child_medication")
+PartialDependence(mf.random, vars = "Child_diagnostic_category")
+
+#risk bias moderators
+dataset1wi$Allocation_concealment <-as.factor(dataset1wi$Allocation_concealment)
+dataset1wi$Blinding_outcome_assessment <-as.factor(dataset1wi$Blinding_outcome_assessment)
+dataset1wi$Incomplete_outcome_data <-as.factor(dataset1wi$Incomplete_outcome_data)
+dataset1wi$Selective_outcome_reporting <-as.factor(dataset1wi$Selective_outcome_reporting)
+mf.random <- MetaForest(formula = yi~ 
+                                  Allocation_concealment +
+                                  Blinding_outcome_assessment + 
+                          Incomplete_outcome_data +
+                          Selective_outcome_reporting,
+                                data = dataset1,
+                                whichweights = "random",
+                                num.trees = 3000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+#Univariate partial dependence plot
+PartialDependence(mf.random, vars = "Allocation_concealment")
+PartialDependence(mf.random, vars = "Blinding_outcome_assessment")
+PartialDependence(mf.random, vars = "Incomplete_outcome_data")
+PartialDependence(mf.random, vars = "Selective_outcome_reporting")
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+preselected <- preselect(mf.random,
+                         replications = 100,
+                         algorithm = "recursive")
+plot(preselected)
+retain_mods <- preselect_vars(preselected, cutoff = .5)
+
+# Load the caret library
+library(caret)
+# Set up 10-fold grouped (=clustered) CV
+grouped_cv <- trainControl(method = "cv", 
+                           index = groupKFold(dataset1wi$articlestudy, k = 10))
+
+# Set up a tuning grid for the three tuning parameters of MetaForest
+tuning_grid <- expand.grid(whichweights = c("random", "fixed", "unif"),
+                       mtry = 2:6,
+                       min.node.size = 2:6)
+
+# X should contain only retained moderators, clustering variable, and vi
+X <- dataset1wi[, c("articlestudy", "vi", retain_mods)]
+
+# Train the model
+mf_cv <- train(y = dataset1wi$yi,
+               x = X,
+               study = "articlestudy", # Name of the clustering variable
+               method = ModelInfo_mf(), 
+               trControl = grouped_cv,
+               tuneGrid = tuning_grid,
+               num.trees = 5000)
+# Examine optimal tuning parameters
+mf_cv$results[which.min(mf_cv$results$RMSE), ]
+final <- mf_cv$finalModel
+r2_oob <- final$forest$r.squared
+plot(final)
+VarImpPlot(final)
+ordered_vars <- names(final$forest$variable.importance)[
+  order(final$forest$variable.importance, decreasing = TRUE)]
+# Plot partial dependence
+PartialDependence(final, vars = ordered_vars,
+                  rawdata = TRUE, pi = .95)
+
+
+expmoderatorsDVtype <- rma(yi, vi, method = "REML", data = dataset1wi,
+                               slab = articlestudy,
+                               ni = N_gross,
+                               mods = ~ DV_num)
+
+expmoderatorsDVtype
+
+
+
+
+
+```
+
+#DV3: child outcomes 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#first is the mean effect, not using one factor as the base group
+#this is only done for factors. If this is done for continuous variables, that would be removing the intercept, which does not theroertically make sense.
+
+###GROUP 1 MODERATORS ####
+Type_Digital_Media3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Type_Digital_Media -1)
+
+Type_Digital_Media3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1065  0.3264     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 97) = 188.7268, p-val < .0001
+# 
+# Test of Moderators (coefficients 1:4):
+# QM(df = 4) = 16.3384, p-val = 0.0026
+# 
+# Model Results:
+# 
+#                      estimate      se    zval    pval    ci.lb   ci.ub 
+# Type_Digital_Media2    0.1402  0.3483  0.4025  0.6873  -0.5425  0.8230     
+# Type_Digital_Media4    0.2925  0.1242  2.3547  0.0185   0.0490  0.5359   * 
+# Type_Digital_Media5    0.1735  0.1412  1.2285  0.2192  -0.1033  0.4504     
+# Type_Digital_Media6    0.4193  0.1388  3.0203  0.0025   0.1472  0.6914  ** 
+# 
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+#now assess if this differs by reference group
+avType_Digital_Media3 <- predict(Type_Digital_Media3,newmods = c(1,1,1,1))
+ # pred     se  ci.lb  ci.ub   cr.lb  cr.ub 
+ # 1.0255 0.4195 0.2033 1.8477 -0.0163 2.0672 
+Type_Digital_Media3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(Type_Digital_Media, ref = "3"))
+
+Type_Digital_Media3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1065  0.3264     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 97) = 188.7268, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:4):
+# QM(df = 3) = 1.7325, p-val = 0.6297
+
+#but are there sig difference between specific groups?
+anova(Type_Digital_Media3, btt=1:4)
+anova(Type_Digital_Media3, L=c(-1,0,0,1))
+# Hypothesis:                                                                                                            
+# 1: -intrcpt + 0.5*relevel(Type_Digital_Media, ref = "3")4 + 0.5*relevel(Type_Digital_Media, ref = "3")5 = 0 
+# 
+# Results:
+#    estimate     se    zval   pval 
+# 1:  -0.6056 0.2931 -2.0659 0.0388 
+# 
+# Test of Hypothesis:
+# QM(df = 1) = 4.2678, p-val = 0.0388
+
+sync_v_nonsync3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  sync_v_nonsync -1)
+
+sync_v_nonsync3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1044  0.3231     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 196.5694, p-val < .0001
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 15.9097, p-val = 0.0012
+# 
+# Model Results:
+# 
+#                  estimate      se    zval    pval    ci.lb   ci.ub 
+# sync_v_nonsync0    0.2923  0.1231  2.3734  0.0176   0.0509  0.5336   * 
+# sync_v_nonsync1    0.1544  0.1583  0.9753  0.3294  -0.1558  0.4646     
+# sync_v_nonsync2    0.3594  0.1177  3.0538  0.0023   0.1287  0.5900  ** 
+avsync_v_nonsync3 <- predict(sync_v_nonsync3,newmods = c(1,1,1))
+# pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+#  0.8060 0.2325 0.3503 1.2617 0.0258 1.5862 
+sync_v_nonsync3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  relevel(sync_v_nonsync, ref ="1"))
+
+sync_v_nonsync3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1044  0.3231     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 196.5694, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 1.0820, p-val = 0.5822
+anova(sync_v_nonsync3, btt=1:3)
+anova(sync_v_nonsync3, L=c(-1,0,1))
+
+
+setting_i3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ setting_i -1)
+
+setting_i3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1079  0.3284     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 191.2242, p-val < .0001
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 15.0045, p-val = 0.0018
+# 
+# Model Results:
+# 
+#             estimate      se    zval    pval    ci.lb   ci.ub 
+# setting_i1    0.1402  0.3503  0.4003  0.6890  -0.5463  0.8267      
+# setting_i3    0.2323  0.1336  1.7384  0.0821  -0.0296  0.4942    . 
+# setting_i4    0.3292  0.0958  3.4384  0.0006   0.1416  0.5169  *** 
+
+avsetting_i3 <- predict(setting_i3,newmods = c(1,1,1))
+# pred     se   ci.lb  ci.ub   cr.lb  cr.ub 
+#  0.7018 0.3869 -0.0566 1.4601 -0.2930 1.6965 
+ 
+setting_i3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(setting_i, ref ="1"))
+
+setting_i3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1079  0.3284     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 191.2242, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 0.5369, p-val = 0.7646
+
+
+Dosage_number_contacts_i3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  Dosage_number_contacts_i)
+
+Dosage_number_contacts_i3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1042  0.3228     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 99) = 196.1897, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.0592, p-val = 0.8078
+# 
+# Model Results:
+# 
+#                           estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                     0.2704  0.1057  2.5592  0.0105   0.0633  0.4775  * 
+# Dosage_number_contacts_i    0.0031  0.0127  0.2433  0.8078  -0.0217  0.0279   
+
+EvidencedAdapt_i3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ EvidencedAdapt_i-1)
+
+EvidencedAdapt_i3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1091  0.3303     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 198.3978, p-val < .0001
+# 
+# Test of Moderators (coefficients 1:3):
+# QM(df = 3) = 14.5288, p-val = 0.0023
+# 
+# Model Results:
+# 
+#                    estimate      se    zval    pval    ci.lb   ci.ub 
+# EvidencedAdapt_i0    0.2261  0.1676  1.3486  0.1775  -0.1025  0.5546     
+# EvidencedAdapt_i1    0.3011  0.1072  2.8098  0.0050   0.0911  0.5111  ** 
+# EvidencedAdapt_i2    0.3139  0.1430  2.1943  0.0282   0.0335  0.5942   * 
+avEvidencedAdapt_i3 <- predict(EvidencedAdapt_i3,newmods = c(1,1,1))
+ #  pred     se  ci.lb  ci.ub  cr.lb  cr.ub 
+ # 0.8410 0.2450 0.3608 1.3213 0.0350 1.6470 
+EvidencedAdapt_i3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(EvidencedAdapt_i, ref ="0"))
+
+EvidencedAdapt_i3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1091  0.3303     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 98) = 198.3978, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:3):
+# QM(df = 2) = 0.1839, p-val = 0.9122
+
+
+
+c_active_v_inactive3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ c_active_v_inactive)
+
+c_active_v_inactive3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0556  0.2357     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 99) = 156.7568, p-val = 0.0002
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 13.6661, p-val = 0.0002
+# 
+# Model Results:
+# 
+#                       estimate      se     zval    pval    ci.lb    ci.ub 
+# intrcpt                 0.4344  0.0718   6.0470  <.0001   0.2936   0.5752  *** 
+# c_active_v_inactive1   -0.4498  0.1217  -3.6968  0.0002  -0.6883  -0.2113  *** 
+
+
+
+####GROUP 2 MODERATORS####
+SES_total3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ SES_total)
+
+SES_total3
+
+# Multivariate Meta-Analysis Model (k = 73; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1228  0.3505     16     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 71) = 155.3697, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.4043, p-val = 0.5249
+# 
+# Model Results:
+# 
+#             estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt       0.1994  0.1331  1.4973  0.1343  -0.0616  0.4603    
+# SES_total1    0.1200  0.1888  0.6359  0.5249  -0.2499  0.4900  
+
+Parent_education_total3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Parent_education_total)
+
+Parent_education_total3
+# Multivariate Meta-Analysis Model (k = 79; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1214  0.3484     18     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 77) = 176.0438, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.8206, p-val = 0.3650
+# 
+# Model Results:
+# 
+#                          estimate      se    zval    pval    ci.lb   ci.ub 
+# intrcpt                    0.2446  0.0938  2.6078  0.0091   0.0608  0.4284  ** 
+# Parent_education_total1    0.1209  0.1335  0.9059  0.3650  -0.1407  0.3825  
+
+
+
+
+#######GROUP 3 MODERATORS########
+Child_medication3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_medication)
+
+Child_medication3
+# Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0962  0.3102     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 99) = 194.1380, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 1.3269, p-val = 0.2494
+# 
+# Model Results:
+# 
+#                    estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt              0.3321  0.0822   4.0426  <.0001   0.1711  0.4932  *** 
+# Child_medication1   -0.2001  0.1737  -1.1519  0.2494  -0.5405  0.1404  
+
+percent_male_total3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ percent_male_total)
+
+percent_male_total3
+#   Multivariate Meta-Analysis Model (k = 69; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.0808  0.2842     14     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 67) = 96.8692, p-val = 0.0099
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 3.5174, p-val = 0.0607
+# 
+# Model Results:
+# 
+#                     estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt               1.1430  0.4285   2.6676  0.0076   0.3032  1.9828  ** 
+# percent_male_total   -0.0131  0.0070  -1.8755  0.0607  -0.0268  0.0006   . 
+
+Child_diagnostic_category3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_diagnostic_category-1)
+
+Child_diagnostic_category3
+   
+# Multivariate Meta-Analysis Model (k = 90; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1077  0.3282     19     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 84) = 151.0240, p-val < .0001
+# 
+# Test of Moderators (coefficients 1:6):
+# QM(df = 6) = 14.1840, p-val = 0.0276
+# 
+# Model Results:
+# 
+#                             estimate      se     zval    pval    ci.lb   ci.ub 
+# Child_diagnostic_category1    0.1297  0.2460   0.5274  0.5979  -0.3524  0.6118     
+# Child_diagnostic_category2    0.1550  0.2477   0.6258  0.5315  -0.3305  0.6405     
+# Child_diagnostic_category3   -0.0422  0.2456  -0.1719  0.8635  -0.5235  0.4391     
+# Child_diagnostic_category4    0.3273  0.1339   2.4450  0.0145   0.0649  0.5896   * 
+# Child_diagnostic_category5    0.4066  0.1467   2.7719  0.0056   0.1191  0.6941  ** 
+# Child_diagnostic_category6    0.0068  0.3423   0.0197  0.9843  -0.6641  0.6776 
+avchild3 <- predict(Child_diagnostic_category3,newmods = c(1,1,1,1,1,1))
+ # pred     se   ci.lb  ci.ub   cr.lb  cr.ub 
+ # 0.9832 0.6196 -0.2313 2.1976 -0.3911 2.3575 
+avchild3 <- predict(Child_diagnostic_category3,newmods = c(0,0,0,1,1,0))
+# pred     se  ci.lb  ci.ub   cr.lb  cr.ub 
+#  0.7339 0.1986 0.3447 1.1231 -0.0179 1.4857 
+Child_diagnostic_category3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ relevel(Child_diagnostic_category, ref ="1"))
+
+Child_diagnostic_category3
+# Multivariate Meta-Analysis Model (k = 90; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1077  0.3282     19     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 84) = 151.0240, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:6):
+# QM(df = 5) = 3.6519, p-val = 0.6005
+
+
+# anova(Child_diagnostic_category3, btt=3:6)
+# anova(Child_diagnostic_category3, L=c(-1,-1,-1,1,1,1))
+
+Age_M3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Age_M)
+
+Age_M3
+#  Multivariate Meta-Analysis Model (k = 70; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1047  0.3235     15     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 68) = 128.8856, p-val < .0001
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.2808, p-val = 0.5962
+# 
+# Model Results:
+# 
+#          estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt    0.5366  0.2950   1.8192  0.0689  -0.0415  1.1147  . 
+# Age_M     -0.0306  0.0577  -0.5299  0.5962  -0.1437  0.0825  
+
+######GROUP 4 MODERATORS #######
+ROB3 <- rma.mv(yi,vi, method = "REML", data = dataset3,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = cbind(Allocation_concealment,Blinding_outcome_assessment, Incomplete_outcome_data, Selective_outcome_reporting))
+ROB3
+#  Multivariate Meta-Analysis Model (k = 101; method: REML)
+# 
+# Variance Components:
+# 
+#             estim    sqrt  nlvls  fixed        factor 
+# sigma^2    0.1007  0.3173     22     no  articlestudy 
+# 
+# Test for Residual Heterogeneity:
+# QE(df = 96) = 169.2821, p-val < .0001
+# 
+# Test of Moderators (coefficients 2:5):
+# QM(df = 4) = 3.5587, p-val = 0.4690
+# 
+# Model Results:
+# 
+#                              estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt                        0.2764  0.3110   0.8889  0.3740  -0.3331  0.8859    
+# Allocation_concealment        -0.0910  0.1121  -0.8122  0.4167  -0.3107  0.1287    
+# Blinding_outcome_assessment   -0.1258  0.1887  -0.6671  0.5047  -0.4956  0.2439    
+# Incomplete_outcome_data        0.0903  0.1696   0.5324  0.5944  -0.2422  0.4228    
+# Selective_outcome_reporting    0.1536  0.1353   1.1354  0.2562  -0.1115  0.4187  
+avROB3 <- predict(ROB3,newmods = c(1,1,1,1))
+
+ #   pred     se  ci.lb  ci.ub   cr.lb  cr.ub 
+ # 0.3034 0.1110 0.0860 0.5209 -0.3553 0.9622 
+
+```
+
+#Metacart
+#DV3 #
+```{r}
+ROB3 <- REmrt(yi ~ Allocation_concealment + Blinding_outcome_assessment + Incomplete_outcome_data + Selective_outcome_reporting, data = dataset3, vi= vi, lookahead = FALSE)
+summary(ROB3)
+plot(ROB3)
+media3 <- REmrt(yi ~ Type_Digital_Media, data = dataset3, vi= vi, lookahead = FALSE)
+#no moderator
+sync3 <- REmrt(yi ~ sync_v_nonsync, data = dataset3, vi= vi, lookahead = FALSE)
+summary(sync3)
+plot(sync3)
+#no moderator
+setting3 <- REmrt(yi ~ setting_i, data = dataset3, vi= vi, lookahead = FALSE)
+summary(setting3)
+plot(setting3)
+#no moderator
+activec3 <- REmrt(yi ~ c_active_v_inactive, data = dataset3, vi= vi, lookahead = FALSE)
+summary(activec3)
+plot(activec3)
+evidence3 <- REmrt(yi ~ EvidencedAdapt_i, data = dataset3, vi= vi, lookahead = FALSE)
+summary(evidence3)
+plot(evidence3)
+#no moderator
+dosage3 <- REmrt(yi ~ Dosage_number_contacts_i, data = dataset3, vi= vi, lookahead = FALSE)
+summary(dosage3)
+plot(dosage3)
+combined3 <- REmrt(yi ~ Type_Digital_Media + Dosage_number_contacts_i + sync_v_nonsync + c_active_v_inactive + EvidencedAdapt_i, data = dataset3, vi= vi, lookahead = FALSE)
+summary(combined3)
+plot(combined3)
+
+```
+
+#metaForest
+## DV3 ##
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+######## moderators
+
+## Below is adapted based on Bialek, M., Gao, Y., Yao, D., & Feldman, G. (2020). Owning leads to valuing: Meta-analysis of the Mere Ownership Effect. Manuscript in preparation. Preprint retrieved from https://www.researchgate.net/publication/326462915_Owning_leads_to_valuing_Meta-analysis_of_the_Mere_Ownership_Effect, as well as Yeung. S. K., Yay, T., Feldman, G. (2020) Omission-commission asymmetries in morality and decisions: Meta-analysis of the Omission-bias
+
+#intervention moderators
+set.seed(42)
+mf.random <- MetaForest(formula = yi ~ 
+                        Type_Digital_Media + 
+                                  sync_v_nonsync + 
+                          EvidencedAdapt_i +  
+                          Dosage_number_contacts_i + c_active_v_inactive,
+                                data = dataset3,
+                                whichweights = "random",
+                                num.trees = 5000, 
+                                method = "REML")
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+#Univariate partial dependence plot
+PartialDependence(mf.random, vars = "Type_Digital_Media")
+PartialDependence(mf.random, vars = "sync_v_nonsync")
+PartialDependence(mf.random, vars = "EvidencedAdapt_i")
+PartialDependence(mf.random, vars = "Dosage_number_contacts_i")
+PartialDependence(mf.random, vars = "c_active_v_inactive")
+
+
+
+#family characteristics moderators
+dataset1ses <- dataset1 %>%
+  filter(SES_total == 0 | SES_total == 1)
+mf.random <- MetaForest(formula = yi ~  
+                          Parent_education_total,
+                                data = dataset1ses,
+                                whichweights = "random",
+                                num.trees = 3000, 
+                                method = "REML")
+mf.random <- MetaForest(formula = yi ~  SES_total,
+                                data = dataset1ses,
+                                whichweights = "random",
+                                num.trees = 5000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+#child moderators
+dataset1child <- dataset1 %>%
+  filter(Child_diagnostic_category != "0")
+mf.random <- MetaForest(formula = yi ~  Child_medication + Child_diagnostic_category,
+                                data = dataset1child,
+                                whichweights = "random",
+                                num.trees = 4000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+PartialDependence(mf.random, vars = "Child_medication")
+PartialDependence(mf.random, vars = "Child_diagnostic_category")
+
+#risk bias moderators
+dataset1wi$Allocation_concealment <-as.factor(dataset1wi$Allocation_concealment)
+dataset1wi$Blinding_outcome_assessment <-as.factor(dataset1wi$Blinding_outcome_assessment)
+dataset1wi$Incomplete_outcome_data <-as.factor(dataset1wi$Incomplete_outcome_data)
+dataset1wi$Selective_outcome_reporting <-as.factor(dataset1wi$Selective_outcome_reporting)
+mf.random <- MetaForest(formula = yi~ 
+                                  Allocation_concealment +
+                                  Blinding_outcome_assessment + 
+                          Incomplete_outcome_data +
+                          Selective_outcome_reporting,
+                                data = dataset1,
+                                whichweights = "random",
+                                num.trees = 3000, 
+                                method = "REML")
+
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+
+#Univariate partial dependence plot
+PartialDependence(mf.random, vars = "Allocation_concealment")
+PartialDependence(mf.random, vars = "Blinding_outcome_assessment")
+PartialDependence(mf.random, vars = "Incomplete_outcome_data")
+PartialDependence(mf.random, vars = "Selective_outcome_reporting")
+summary(mf.random)
+plot(mf.random)
+VarImpPlot(mf.random)
+preselected <- preselect(mf.random,
+                         replications = 100,
+                         algorithm = "recursive")
+plot(preselected)
+retain_mods <- preselect_vars(preselected, cutoff = .5)
+
+# Load the caret library
+library(caret)
+# Set up 10-fold grouped (=clustered) CV
+grouped_cv <- trainControl(method = "cv", 
+                           index = groupKFold(dataset1wi$articlestudy, k = 10))
+
+# Set up a tuning grid for the three tuning parameters of MetaForest
+tuning_grid <- expand.grid(whichweights = c("random", "fixed", "unif"),
+                       mtry = 2:6,
+                       min.node.size = 2:6)
+
+# X should contain only retained moderators, clustering variable, and vi
+X <- dataset1wi[, c("articlestudy", "vi", retain_mods)]
+
+# Train the model
+mf_cv <- train(y = dataset1wi$yi,
+               x = X,
+               study = "articlestudy", # Name of the clustering variable
+               method = ModelInfo_mf(), 
+               trControl = grouped_cv,
+               tuneGrid = tuning_grid,
+               num.trees = 5000)
+# Examine optimal tuning parameters
+mf_cv$results[which.min(mf_cv$results$RMSE), ]
+final <- mf_cv$finalModel
+r2_oob <- final$forest$r.squared
+plot(final)
+VarImpPlot(final)
+ordered_vars <- names(final$forest$variable.importance)[
+  order(final$forest$variable.importance, decreasing = TRUE)]
+# Plot partial dependence
+PartialDependence(final, vars = ordered_vars,
+                  rawdata = TRUE, pi = .95)
+
+
+expmoderatorsDVtype <- rma(yi, vi, method = "REML", data = dataset1wi,
+                               slab = articlestudy,
+                               ni = N_gross,
+                               mods = ~ DV_num)
+
+expmoderatorsDVtype
+
+
+
+
+
+```
+
+#across outcomes
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ROBall <- REmrt(yi ~ Allocation_concealment + Blinding_outcome_assessment + Incomplete_outcome_data + Selective_outcome_reporting, data = dataset_total, vi= vi, lookahead = FALSE)
+TypedigitalALL <- REmrt(yi ~ Type_Digital_Media, data = dataset_total, vi= vi, lookahead = FALSE)
+SyncALL <- REmrt(yi ~ sync_v_nonsync, data = dataset_total, vi= vi, lookahead = FALSE)
+SetttingALL <- REmrt(yi ~ setting_i, data = dataset_total, vi= vi, lookahead = FALSE)
+ActivecontrolALL <- REmrt(yi ~ c_active_v_inactive, data = dataset_total, vi= vi, lookahead = FALSE)
+EvidencedBased <- REmrt(yi ~ EvidencedAdapt_i, data = dataset_total, vi= vi, lookahead = FALSE)
+DosageALL <- REmrt(yi ~ Dosage_number_contacts_i, data = dataset_total, vi= vi, c=4, lookahead = FALSE)
+Fullmodel_ALL <- REmrt(yi ~ Type_Digital_Media + Dosage_number_contacts_i + sync_v_nonsync + c_active_v_inactive + EvidencedAdapt_i, data = dataset_total, vi= vi, lookahead = FALSE)
+
+
+TypedigitalALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ Type_Digital_Media-1)
+
+TypedigitalALL
+
+TypedigitalALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Type_Digital_Media-1)
+
+TypedigitalALL
+#factor level signficance
+
+TypedigitalALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Type_Digital_Media)
+
+TypedigitalALL
+#ns for full factor model
+
+
+SyncALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~  sync_v_nonsync-1)
+
+SyncALL
+#sig at factor level
+SyncALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~  sync_v_nonsync)
+
+SyncALL
+#combo better than sync
+SyncALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  sync_v_nonsync-1)
+
+SyncALL
+#sig at factor level
+SyncALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  sync_v_nonsync)
+
+SyncALL
+#ns across factors
+SetttingALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ setting_i)
+
+SetttingALL
+#interactive and combo better
+SetttingALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ setting_i-1)
+
+SetttingALL
+#sig at factor level
+SetttingALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ setting_i)
+
+SetttingALL
+#ns at factor level
+dataset_total$c_active_v_inactive <- as.factor(dataset_total$c_active_v_inactive)
+ActivecontrolALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ c_active_v_inactive)
+
+ActivecontrolALL
+#active, lower effect
+ActivecontrolALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ c_active_v_inactive)
+ActivecontrolALL
+#active, lower effect across both models
+
+
+DosageALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~  Dosage_number_contacts_i)
+
+DosageALL
+#ns linear
+DosageALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~  Dosage_number_contacts_i)
+
+DosageALL
+#ns linear across models
+
+
+evidenceALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ EvidencedAdapt_i)
+
+evidenceALL
+#evidenced based higher
+evidenceALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ EvidencedAdapt_i-1)
+
+evidenceALL
+#factor level sig adapated and evidenced based
+evidenceALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ EvidencedAdapt_i)
+
+evidenceALL
+#ns
+
+SESALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ SES_total)
+
+SESALL
+#ns
+SESALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ SES_total)
+
+SESALL
+#SIG DIS
+#higher dis than nondis
+
+eduALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Parent_education_total)
+
+eduALL
+#ns
+eduALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ Parent_education_total)
+
+eduALL
+#ns
+
+medsALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ Child_medication)
+
+medsALL
+anova(expmoderators1, btt=1:5)
+#yes, meds, worse
+medsALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_medication)
+
+medsALL
+#ns
+dxALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ Child_diagnostic_category-1)
+
+dxALL
+#factor level sig
+dxALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_diagnostic_category-1)
+
+dxALL
+dxALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Child_diagnostic_category)
+
+dxALL
+#ns
+ageALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ Age_M)
+
+ageALL
+#higher age, lower effect
+ageALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ Age_M)
+
+ageALL
+#ns
+maleALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ percent_male_total)
+
+maleALL
+#male worse
+maleALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = ~ percent_male_total)
+
+maleALL
+#ns
+ROBALL <- rma(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = cbind(Allocation_concealment,Blinding_outcome_assessment, Incomplete_outcome_data, Selective_outcome_reporting))
+ROBALL
+#selective reporting increases, allocation concealment lower
+ROBALL <- rma.mv(yi,vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                              random = ~ 1 | articlestudy,
+                               mods = cbind(Allocation_concealment,Blinding_outcome_assessment, Incomplete_outcome_data, Selective_outcome_reporting))
+ROBALL
+#ns
+
+```
+
+### Comparing DV types  ###
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Set up required information for fixed-effects contrast between DV types
+comparedvtypes <- data.frame(
+    estimate = as.numeric(c(expdvmDV2$b, expdvmDV3$b, expdvmDV1$b)), 
+    stderror = as.numeric(c(expdvmDV2$se, expdvmDV3$se, expdvmDV1$se)), 
+    numstudies = as.numeric(c(expdvmDV2$k, expdvmDV3$k, expdvmDV1$k)),
+    meta = as.character(c("2 - DV2","3 - DV3","1 - DV1")), 
+    tau2 = as.numeric(c(c(expdvmDV2$tau2, expdvmDV3$tau2, expdvmDV1$tau2))))
+comparedvtypes
+
+#   estimate stderror numstudies    meta   tau2
+# 1    0.257   0.0584         14 2 - DV2 0.0223
+# 2    0.230   0.0511         21 3 - DV3 0.0301
+# 3    0.226   0.0513         20 1 - DV1 0.0284
+
+#Run fixed-effects contrast between DV types
+compareddvtypes <- rma(estimate, sei=stderror, mods = ~ factor(meta), method="FE", data=comparedvtypes, digits=3)
+compareddvtypes
+
+
+# Model Results:
+# 
+#                      estimate     se   zval   pval   ci.lb  ci.ub 
+# intrcpt                 0.226  0.051  4.402  <.001   0.125  0.327  *** 
+# factor(meta)2 - DV2     0.031  0.078  0.402  0.687  -0.121  0.184      
+# factor(meta)3 - DV3     0.004  0.072  0.052  0.958  -0.138  0.146 
+```
+
+### DV type as a moderator ###
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+expmoderatorsDVtype <- rma(yi, vi, method = "REML", data = dataset_total,
+                               slab = articlestudy,
+                               mods = ~ DV_num)
+
+expmoderatorsDVtype
+
+# 
+# Test of Moderators (coefficient 2):
+# QM(df = 1) = 0.6247, p-val = 0.4293
+# 
+# Model Results:
+# 
+#          estimate      se     zval    pval    ci.lb   ci.ub 
+# intrcpt    0.2484  0.0437   5.6862  <.0001   0.1628  0.3340  *** 
+# DV_num    -0.0162  0.0205  -0.7904  0.4293  -0.0565  0.0240  
+```
+
+##sensitivity test for active control group
+```{r}
+dataset1AC <-  dataset1 %>%
+  filter(c_active_v_inactive=="1")
+allexpcollapsedml3_activecontrol <- rma.mv(yi, vi, random = ~ 1 | Article_Name/Sample_num, data=dataset1AC)
+allexpcollapsedml3_activecontrol
+
+dataset3AC <-  dataset3 %>%
+  filter(c_active_v_inactive=="1")
+allexpcollapsedml3_activecontrol3 <- rma.mv(yi, vi, random = ~ 1 | Article_Name/Sample_num, data=dataset3AC)
+allexpcollapsedml3_activecontrol3
+```
+
+###Risk of bias table completed using robis online tool: https://mcguinlu.shinyapps.io/robvis/
+
+# write.csv(dataset, "Digital_parent_training_RCT_MetaAnalysis.csv")
+
+
+<!-- \newpage -->
+<!-- #Notes# -->
+<!--  ```{r} -->
+<!--  sessionInfo() -->
+ ``` 
+ 
